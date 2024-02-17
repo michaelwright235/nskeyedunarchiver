@@ -227,6 +227,7 @@ enum ObjectValue {
     Integer(Integer),
     F64(f64),
     Boolean(bool),
+    Data(Vec<u8>),
     RefArray(Vec<Rc<RefCell<ArchiveValue>>>),
     Ref(Rc<RefCell<ArchiveValue>>),
     NullRef,
@@ -345,6 +346,8 @@ impl Object {
                 ObjectValue::F64(f)
             } else if let Some(b) = obj.as_boolean() {
                 ObjectValue::Boolean(b)
+            } else if obj.as_data().is_some() {
+                ObjectValue::Data(obj.into_data().unwrap())
             } else if let Some(arr) = obj.as_array() {
                 let mut arr_of_uids = Vec::with_capacity(arr.len());
                 for val in obj.into_array().unwrap() {
@@ -355,7 +358,7 @@ impl Object {
                     }
                 }
                 ObjectValue::RawRefArray(arr_of_uids)
-            } else if let Some(_) = obj.as_uid() {
+            } else if obj.as_uid().is_some() {
                 ObjectValue::RawRef(obj.into_uid().unwrap().get())
             } else {
                 panic!("Unexpected object value type: {:?}", obj)
