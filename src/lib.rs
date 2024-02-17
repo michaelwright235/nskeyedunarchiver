@@ -1,6 +1,6 @@
 mod error;
 
-use std::{borrow::BorrowMut, cell::{Cell, OnceCell, RefCell}, collections::HashMap, rc::{Rc, Weak}};
+use std::{borrow::{Borrow, BorrowMut}, cell::{Cell, OnceCell, Ref, RefCell}, collections::HashMap, rc::{Rc, Weak}};
 
 use log::debug;
 use paste::paste;
@@ -11,11 +11,11 @@ use plist::{Dictionary, Integer, Value};
 pub(crate) const ARCHIVER: &str = "NSKeyedArchiver";
 pub(crate) const ARCHIVER_VERSION: u64 = 100000;
 
-const ARCHIVER_KEY_NAME: &str = "$archiver";
-const TOP_KEY_NAME: &str = "$top";
-const OBJECTS_KEY_NAME: &str = "$objects";
-const VERSION_KEY_NAME: &str = "$version";
-const NULL_OBJECT_REFERENCE_NAME: &str = "$null";
+pub(crate) const ARCHIVER_KEY_NAME: &str = "$archiver";
+pub(crate) const TOP_KEY_NAME: &str = "$top";
+pub(crate) const OBJECTS_KEY_NAME: &str = "$objects";
+pub(crate) const VERSION_KEY_NAME: &str = "$version";
+pub(crate) const NULL_OBJECT_REFERENCE_NAME: &str = "$null";
 
 macro_rules! get_key {
     ($self:ident, $key:ident, $typ:literal) => {
@@ -45,19 +45,32 @@ enum ArchiveValue {
     Object(Object),
 }
 
-#[derive(Debug)]
-struct ObjectList(Vec<ArchiveValue>);
-impl ObjectList {
-    pub(crate) fn set_list(&mut self, list: Vec<ArchiveValue>) {
-        self.0 = list;
+impl ArchiveValue {
+    pub fn as_object(&self) -> Option<&Object> {
+        if let Self::Object(o) = &self {
+            Some(o)
+        } else {
+            None
+        }
     }
-    pub fn list(&self) -> &[ArchiveValue] {
-        &self.0
+    pub fn as_object_mut(&mut self) -> Option<&mut Object> {
+        if let Self::Object(o) = self {
+            Some(o)
+        } else {
+            None
+        }
+    }
+    pub fn as_classes(&self) -> Option<&[String]> {
+        if let Self::Classes(o) = &self {
+            Some(o)
+        } else {
+            None
+        }
     }
 }
 
 pub struct NSKeyedUnarchiver {
-    objects: Rc<RefCell<ObjectList>>,
+    objects: Vec<Rc<RefCell<ArchiveValue>>>,
     top: Dictionary,
 }
 
@@ -99,26 +112,21 @@ impl NSKeyedUnarchiver {
             return Err(IncorrectFormatError::WrongValueType(OBJECTS_KEY_NAME, "Array").into());
         };
 
-        let mut objects = Self::decode_objects(raw_objects);
-        let object_list: Rc<RefCell<ObjectList>> = Rc::from(RefCell::new(ObjectList{0: vec![]}));
-        for obj in &mut objects {
-            if let ArchiveValue::Object(i) = obj {
-                i.objects_tree = Some(Rc::clone(&object_list));
-            }
-        }
-        object_list.as_ref().borrow_mut().0 = objects;
-
+        let objects = Self::decode_objects(raw_objects);
         Ok(Self {
-            objects: object_list,
+            objects,
             top
         })
     }
 
-    pub fn test(&self) {
-        println!("{:#?}", self.objects.borrow().list());
-        let a = self.objects.borrow();
-        let list = a.list();
-        let b = [&list[1], &list[2]];
+    pub fn test(&self) -> Ref<'_, ArchiveValue> {
+        println!("{:#?}", self.objects[2]);
+        for obj in &self.objects {
+            let a = obj.as_ref();
+        }
+        let a = &self.objects[0];
+        let b = a.as_ref().borrow();
+        b
     }
 
     fn get_header_key(dict: &mut Dictionary, key: &'static str) -> Result<Value, Error> {
@@ -161,13 +169,10 @@ impl NSKeyedUnarchiver {
             false
         }
     }
-}
 
-impl NSKeyedUnarchiver {
-    fn decode_objects(objects: Vec<Value>) -> Vec<ArchiveValue> {
+    fn decode_objects(objects: Vec<Value>) -> Vec<Rc<RefCell<ArchiveValue>>> {
         let mut decoded_objects = Vec::with_capacity(objects.len());
         for obj in objects {
-            debug!("{:?}", obj);
             let decoded_obj =
             if let Some(s) = obj.as_string() {
                 if s == NULL_OBJECT_REFERENCE_NAME {
@@ -181,7 +186,6 @@ impl NSKeyedUnarchiver {
                 ArchiveValue::F64(f)
             } else if let Some(dict) = obj.as_dictionary() {
                 if Self::is_container(&obj) {
-                    debug!("Is object");
                     ArchiveValue::Object(Object::from_dict(obj.into_dictionary().unwrap()))
                 }
                 else if dict.contains_key("$classes") {
@@ -204,7 +208,14 @@ impl NSKeyedUnarchiver {
             } else {
                 panic!("Unexpected object type")
             };
-            decoded_objects.push(decoded_obj);
+            decoded_objects.push(Rc::new(RefCell::new(decoded_obj)));
+        }
+
+        for object in &decoded_objects {
+            let mut a = object.as_ref().borrow_mut();
+            if let Some(obj) = a.as_object_mut() {
+                obj.apply_object_tree(&decoded_objects)
+            }
         }
         decoded_objects
     }
@@ -216,15 +227,20 @@ enum ObjectValue {
     Integer(Integer),
     F64(f64),
     Boolean(bool),
-    Array(Vec<u64>), // vector of uids
-    ObjectRef(u64),
-    NullRef
+    RefArray(Vec<Rc<RefCell<ArchiveValue>>>),
+    Ref(Rc<RefCell<ArchiveValue>>),
+    NullRef,
+
+    // Don't use them
+    RawRefArray(Vec<u64>), // vector of uids
+    RawRef(u64), // uid
 }
 
+#[derive(Debug)]
 pub struct Object {
+    classes: Option<Rc<RefCell<ArchiveValue>>>,
     classes_uid: u64,
     fields: HashMap<String, ObjectValue>,
-    objects_tree: Option<Rc<RefCell<ObjectList>>>
 }
 
 impl Object {
@@ -268,17 +284,6 @@ impl Object {
         todo!()
     }
 
-    fn is_container(val: &Value) -> bool {
-        let Some(dict) = val.as_dictionary() else {
-            return false;
-        };
-        if let Some(cls) = dict.get("$class") {
-            cls.as_uid().is_some()
-        } else {
-            false
-        }
-    }
-
     pub fn decode_object(&self, key: &str) -> Result<(), Error> { // -> Result<&Object, Error>
         // let uid = get_key!(self, key, "uid").get();
         // let Some(obj) = self.objects_tree.get(uid as usize) else {
@@ -295,14 +300,32 @@ impl Object {
         self.fields.contains_key(key)
     }
 
-    pub fn classes(&self) -> &[String] {
-        //&self.classes
-        todo!()
+    pub fn classes(&self) -> Vec<String> {
+        let a = self.classes.as_ref().unwrap().as_ref().borrow();
+        let b = a.as_classes().unwrap();
+        b.to_vec()
     }
 
-    pub fn class(&self) -> &str {
-        //&self.classes[0]
-        todo!()
+    pub fn class(&self) -> String {
+        let a = self.classes.as_ref().unwrap().as_ref().borrow();
+        a.as_classes().unwrap()[0].to_string()
+    }
+
+    pub(crate) fn apply_object_tree(&mut self, tree: &[Rc<RefCell<ArchiveValue>>]) {
+        self.classes = Some(tree[self.classes_uid as usize].clone());
+
+        for (_, value) in &mut self.fields {
+            if let ObjectValue::RawRef(r) = value {
+                *value = ObjectValue::Ref(tree[*r as usize].clone());
+            }
+            if let ObjectValue::RawRefArray(arr) = value {
+                let mut ref_arr = Vec::with_capacity(arr.len());
+                for item in arr {
+                    ref_arr.push(tree[*item as usize].clone())
+                }
+                *value = ObjectValue::RefArray(ref_arr);
+            }
+        }
     }
 
     pub(crate) fn from_dict(mut dict: Dictionary) -> Self {
@@ -331,29 +354,19 @@ impl Object {
                         arr_of_uids.push(val.into_uid().unwrap().get());
                     }
                 }
-                ObjectValue::Array(arr_of_uids)
+                ObjectValue::RawRefArray(arr_of_uids)
             } else if let Some(_) = obj.as_uid() {
-                ObjectValue::ObjectRef(obj.into_uid().unwrap().get())
+                ObjectValue::RawRef(obj.into_uid().unwrap().get())
             } else {
                 panic!("Unexpected object value type: {:?}", obj)
             };
             fields.insert(key, decoded_obj);
         }
         Self {
+            classes: None,
             classes_uid,
             fields,
-            objects_tree: None
         }
-    }
-}
-
-impl std::fmt::Debug for Object {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Object")
-            .field("classes_uid", &self.classes_uid)
-            .field("fields", &self.fields)
-            //.field("objects_tree", &self.objects_tree.is_some())
-            .finish()
     }
 }
 
