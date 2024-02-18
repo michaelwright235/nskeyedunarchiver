@@ -1,5 +1,5 @@
-use thiserror::Error;
 use crate::{ARCHIVER, ARCHIVER_VERSION};
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -12,7 +12,7 @@ pub enum Error {
     #[error("Missing key '{0}' for object '{1}'")]
     MissingObjectKey(String, String),
     #[error("Wrong object value type. Expected '{0}' for key '{1}'")]
-    WrongObjectValueType(String, String)
+    WrongObjectValueType(String, String),
 }
 
 impl From<IncorrectFormatError> for Error {

@@ -1,12 +1,14 @@
 mod error;
 
-use std::{borrow::{Borrow, BorrowMut}, cell::{Cell, OnceCell, Ref, RefCell}, collections::HashMap, rc::{Rc, Weak}};
-
-use log::debug;
-use paste::paste;
-pub use plist;
+use enum_as_inner::EnumAsInner;
 pub use error::*;
-use plist::{Dictionary, Integer, Value};
+use paste::paste;
+use plist::{Dictionary as PlistDictionary, Integer as PlistInteger, Value as PlistValue};
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    collections::HashMap,
+    rc::Rc,
+};
 
 pub(crate) const ARCHIVER: &str = "NSKeyedArchiver";
 pub(crate) const ARCHIVER_VERSION: u64 = 100000;
@@ -17,65 +19,48 @@ pub(crate) const OBJECTS_KEY_NAME: &str = "$objects";
 pub(crate) const VERSION_KEY_NAME: &str = "$version";
 pub(crate) const NULL_OBJECT_REFERENCE_NAME: &str = "$null";
 
-macro_rules! get_key {
-    ($self:ident, $key:ident, $typ:literal) => {
-        paste! {
-            {
-                if !$self.contains_key($key) {
-                    return Err(Error::MissingObjectKey($self.class().to_string(), $key.to_string()))
-                }
-                let obj = $self.fields.get($key).unwrap().[<as_$typ>]();
-                if obj.is_none() {
-                    return Err(Error::WrongObjectValueType($typ.to_string(), $key.to_string()))
-                }
-                obj.unwrap()
-            }
-        }
-    };
+#[derive(Clone)]
+pub struct ObjectRef(Rc<RefCell<ArchiveValue>>);
+impl ObjectRef {
+    pub fn new(r: ArchiveValue) -> Self {
+        Self(Rc::new(RefCell::new(r)))
+    }
+    pub fn borrow(&self) -> Ref<'_, ArchiveValue> {
+        self.0.as_ref().borrow()
+    }
+    pub(crate) fn borrow_mut(&self) -> RefMut<'_, ArchiveValue> {
+        self.0.as_ref().borrow_mut()
+    }
+}
+impl std::fmt::Debug for ObjectRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.borrow().fmt(f)
+    }
+}
+impl PartialEq for ObjectRef {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
 }
 
 // Possible values inside of $objects
-#[derive(Debug)]
-enum ArchiveValue {
+#[derive(Debug, EnumAsInner)]
+pub enum ArchiveValue {
     String(String),
-    Integer(Integer),
+    Integer(PlistInteger),
     F64(f64),
     NullRef,
     Classes(Vec<String>),
     Object(Object),
 }
 
-impl ArchiveValue {
-    pub fn as_object(&self) -> Option<&Object> {
-        if let Self::Object(o) = &self {
-            Some(o)
-        } else {
-            None
-        }
-    }
-    pub fn as_object_mut(&mut self) -> Option<&mut Object> {
-        if let Self::Object(o) = self {
-            Some(o)
-        } else {
-            None
-        }
-    }
-    pub fn as_classes(&self) -> Option<&[String]> {
-        if let Self::Classes(o) = &self {
-            Some(o)
-        } else {
-            None
-        }
-    }
-}
-
 pub struct NSKeyedUnarchiver {
-    objects: Vec<Rc<RefCell<ArchiveValue>>>,
-    top: Dictionary,
+    objects: Vec<ObjectRef>,
+    top: PlistDictionary,
 }
 
 impl NSKeyedUnarchiver {
-    pub fn new(plist: Value) -> Result<Self, Error> {
+    pub fn new(plist: PlistValue) -> Result<Self, Error> {
         let Some(mut dict) = plist.into_dictionary() else {
             return Err(IncorrectFormatError::WrongValueType("root", "Dictionary").into());
         };
@@ -103,7 +88,9 @@ impl NSKeyedUnarchiver {
         // Check $top key
         let top_key = Self::get_header_key(&mut dict, TOP_KEY_NAME)?;
         let Some(top) = top_key.to_owned().into_dictionary() else {
-            return Err(IncorrectFormatError::WrongValueType(TOP_KEY_NAME, "Dictionary").into());
+            return Err(
+                IncorrectFormatError::WrongValueType(TOP_KEY_NAME, "Dictionary").into(),
+            );
         };
 
         // Check $objects key
@@ -113,23 +100,19 @@ impl NSKeyedUnarchiver {
         };
 
         let objects = Self::decode_objects(raw_objects);
-        Ok(Self {
-            objects,
-            top
-        })
+        Ok(Self { objects, top })
     }
 
-    pub fn test(&self) -> Ref<'_, ArchiveValue> {
-        println!("{:#?}", self.objects[2]);
-        for obj in &self.objects {
-            let a = obj.as_ref();
+    pub fn top(&self) -> HashMap<String, ObjectRef> {
+        let mut map = HashMap::with_capacity(self.top.len());
+        for (key, value) in &self.top {
+            let uid = value.as_uid().unwrap().get() as usize;
+            map.insert(key.to_string(), self.objects[uid].clone());
         }
-        let a = &self.objects[0];
-        let b = a.as_ref().borrow();
-        b
+        map
     }
 
-    fn get_header_key(dict: &mut Dictionary, key: &'static str) -> Result<Value, Error> {
+    fn get_header_key(dict: &mut PlistDictionary, key: &'static str) -> Result<PlistValue, Error> {
         let Some(objects_value) = dict.remove(key) else {
             return Err(IncorrectFormatError::MissingHeaderKey(key).into());
         };
@@ -139,27 +122,25 @@ impl NSKeyedUnarchiver {
     /// Reads a plist file and creates a new converter for it. It should have a
     /// NSKeyedArchiver plist structure.
     pub fn from_file<P: AsRef<std::path::Path>>(path: P) -> Result<Self, Error> {
-        let val: Value = plist::from_file(path)?;
+        let val: PlistValue = plist::from_file(path)?;
         Self::new(val)
     }
 
     /// Reads a plist from a byte slice and creates a new converter for it.
     /// It should have a NSKeyedArchiver plist structure.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        let val: Value = plist::from_bytes(bytes)?;
+        let val: PlistValue = plist::from_bytes(bytes)?;
         Self::new(val)
     }
 
     /// Reads a plist from a seekable byte stream and creates a new converter
     /// for it. It should have a NSKeyedArchiver plist structure.
-    pub fn from_reader<R: std::io::Read + std::io::Seek>(
-        reader: R,
-    ) -> Result<Self, Error> {
-        let val: Value = plist::from_reader(reader)?;
+    pub fn from_reader<R: std::io::Read + std::io::Seek>(reader: R) -> Result<Self, Error> {
+        let val: PlistValue = plist::from_reader(reader)?;
         Self::new(val)
     }
 
-    fn is_container(val: &Value) -> bool {
+    fn is_container(val: &PlistValue) -> bool {
         let Some(dict) = val.as_dictionary() else {
             return false;
         };
@@ -170,26 +151,30 @@ impl NSKeyedUnarchiver {
         }
     }
 
-    fn decode_objects(objects: Vec<Value>) -> Vec<Rc<RefCell<ArchiveValue>>> {
+    fn decode_objects(objects: Vec<PlistValue>) -> Vec<ObjectRef> {
         let mut decoded_objects = Vec::with_capacity(objects.len());
         for obj in objects {
-            let decoded_obj =
-            if let Some(s) = obj.as_string() {
+            let decoded_obj = if let Some(s) = obj.as_string() {
                 if s == NULL_OBJECT_REFERENCE_NAME {
                     ArchiveValue::NullRef
                 } else {
                     ArchiveValue::String(obj.into_string().unwrap())
                 }
-            } else if let Value::Integer(i) = obj {
+            } else if let PlistValue::Integer(i) = obj {
                 ArchiveValue::Integer(i)
             } else if let Some(f) = obj.as_real() {
                 ArchiveValue::F64(f)
             } else if let Some(dict) = obj.as_dictionary() {
                 if Self::is_container(&obj) {
                     ArchiveValue::Object(Object::from_dict(obj.into_dictionary().unwrap()))
-                }
-                else if dict.contains_key("$classes") {
-                    if let Some(classes_arr) = obj.into_dictionary().unwrap().remove("$classes").unwrap().into_array() {
+                } else if dict.contains_key("$classes") {
+                    if let Some(classes_arr) = obj
+                        .into_dictionary()
+                        .unwrap()
+                        .remove("$classes")
+                        .unwrap()
+                        .into_array()
+                    {
                         let mut classes = Vec::with_capacity(classes_arr.len());
                         for class in classes_arr {
                             if let Some(s) = class.into_string() {
@@ -208,11 +193,11 @@ impl NSKeyedUnarchiver {
             } else {
                 panic!("Unexpected object type")
             };
-            decoded_objects.push(Rc::new(RefCell::new(decoded_obj)));
+            decoded_objects.push(ObjectRef::new(decoded_obj));
         }
 
         for object in &decoded_objects {
-            let mut a = object.as_ref().borrow_mut();
+            let mut a = object.borrow_mut();
             if let Some(obj) = a.as_object_mut() {
                 obj.apply_object_tree(&decoded_objects)
             }
@@ -221,80 +206,117 @@ impl NSKeyedUnarchiver {
     }
 }
 
-#[derive(Debug)]
+macro_rules! get_key {
+    ($self:ident, $key:ident, $typ:literal) => {
+        paste! {
+            {
+                if !$self.contains_key($key) {
+                    return Err(Error::MissingObjectKey($self.class().to_string(), $key.to_string()))
+                }
+                let obj = $self.fields.get($key).unwrap().[<as_$typ>]();
+                if obj.is_none() {
+                    return Err(Error::WrongObjectValueType($typ.to_string(), $key.to_string()))
+                }
+                obj.unwrap()
+            }
+        }
+    };
+}
+
+#[derive(Debug, EnumAsInner)]
 enum ObjectValue {
     String(String),
-    Integer(Integer),
+    Integer(PlistInteger),
     F64(f64),
     Boolean(bool),
     Data(Vec<u8>),
-    RefArray(Vec<Rc<RefCell<ArchiveValue>>>),
-    Ref(Rc<RefCell<ArchiveValue>>),
+    RefArray(Vec<ObjectRef>),
+    Ref(ObjectRef),
     NullRef,
 
     // Don't use them
     RawRefArray(Vec<u64>), // vector of uids
-    RawRef(u64), // uid
+    RawRef(u64),           // uid
 }
 
 #[derive(Debug)]
 pub struct Object {
-    classes: Option<Rc<RefCell<ArchiveValue>>>,
+    classes: Option<ObjectRef>,
     classes_uid: u64,
     fields: HashMap<String, ObjectValue>,
 }
 
 impl Object {
     pub fn decode_bool(&self, key: &str) -> Result<bool, Error> {
-        //Ok(get_key!(self, key, "boolean"))
-        todo!()
+        Ok(*get_key!(self, key, "boolean"))
     }
 
-    pub fn decode_data(&self, key: &str) -> Result<Vec<u8>, Error> {
-        //Ok(get_key!(self, key, "data").to_vec())
-        todo!()
+    pub fn decode_data(&self, key: &str) -> Result<&[u8], Error> {
+        // TODO: check if it can be referenced with uid
+        Ok(get_key!(self, key, "data"))
     }
 
     pub fn decode_f64(&self, key: &str) -> Result<f64, Error> {
-        //Ok(get_key!(self, key, "real"))
-        todo!()
+        Ok(*get_key!(self, key, "f64"))
     }
 
     pub fn decode_i64(&self, key: &str) -> Result<i64, Error> {
-        //Ok(get_key!(self, key, "signed_integer"))
-        todo!()
+        match get_key!(self, key, "integer").as_signed() {
+            Some(i) => Ok(i),
+            None => Err(Error::WrongObjectValueType(
+                "signed integer".to_string(),
+                "unsigned integer".to_string(),
+            )),
+        }
     }
 
     pub fn decode_u64(&self, key: &str) -> Result<u64, Error> {
-        //Ok(get_key!(self, key, "unsigned_integer"))
-        todo!()
+        match get_key!(self, key, "integer").as_unsigned() {
+            Some(u) => Ok(u),
+            None => Err(Error::WrongObjectValueType(
+                "unsigned integer".to_string(),
+                "signed integer".to_string(),
+            )),
+        }
     }
 
     pub fn decode_string(&self, key: &str) -> Result<String, Error> {
         // As far as I can tell all strings inside of objects are
         // linked with UIDs
-        // let uid = get_key!(self, key, "uid").get();
-        // let Some(obj) = self.objects_tree.get(uid as usize) else {
-        //     return Err(Error::MissingObject(uid));
-        // };
-        // if let Some(s) = obj.as_string() {
-        //     return Ok(s.to_string())
-        // } else {
-        //     return Err(Error::WrongObjectValueType("string".to_string(), key.to_string()))
-        // }
-        todo!()
+        let obj = get_key!(self, key, "ref").borrow();
+        let Some(string) = obj.as_string() else {
+            return Err(Error::WrongObjectValueType(
+                "string".to_string(),
+                "".to_string(),
+            ));
+        };
+
+        Ok(string.to_string())
     }
 
-    pub fn decode_object(&self, key: &str) -> Result<(), Error> { // -> Result<&Object, Error>
-        // let uid = get_key!(self, key, "uid").get();
-        // let Some(obj) = self.objects_tree.get(uid as usize) else {
-        //     return Err(Error::MissingObject(uid));
-        // };
-        // if !Self::is_container(obj) {
-        //     return Err(Error::WrongObjectValueType("dictionary".to_string(), key.to_string()));
-        // }
-        // return new object from dict
-        todo!()
+    pub fn decode_object(&self, key: &str) -> Result<ObjectRef, Error> {
+        // -> Result<&Object, Error>
+        let obj = get_key!(self, key, "ref");
+        Ok(obj.clone())
+    }
+
+    pub fn decode_array(&self, key: &str) -> Result<Vec<ObjectRef>, Error> {
+        let array = get_key!(self, key, "ref_array");
+        let mut refs = Vec::with_capacity(array.len());
+        for item in array {
+            refs.push(item.clone());
+        }
+        Ok(refs)
+    }
+
+    pub fn is_null_ref(&self, key: &str) -> Result<bool, Error> {
+        if !self.contains_key(key) {
+            return Err(Error::MissingObjectKey(
+                self.class().to_string(),
+                key.to_string(),
+            ));
+        }
+        Ok(self.fields.get(key).unwrap().is_null_ref())
     }
 
     pub fn contains_key(&self, key: &str) -> bool {
@@ -302,20 +324,23 @@ impl Object {
     }
 
     pub fn classes(&self) -> Vec<String> {
-        let a = self.classes.as_ref().unwrap().as_ref().borrow();
+        let a = self.classes.as_ref().unwrap().borrow();
         let b = a.as_classes().unwrap();
         b.to_vec()
     }
 
     pub fn class(&self) -> String {
-        let a = self.classes.as_ref().unwrap().as_ref().borrow();
+        let a = self.classes.as_ref().unwrap().borrow();
         a.as_classes().unwrap()[0].to_string()
     }
 
-    pub(crate) fn apply_object_tree(&mut self, tree: &[Rc<RefCell<ArchiveValue>>]) {
+    pub(crate) fn apply_object_tree(&mut self, tree: &[ObjectRef]) {
         self.classes = Some(tree[self.classes_uid as usize].clone());
+        if !self.classes.as_ref().unwrap().borrow().is_classes() {
+            panic!("Incorrent Classes structure")
+        }
 
-        for (_, value) in &mut self.fields {
+        for value in self.fields.values_mut() {
             if let ObjectValue::RawRef(r) = value {
                 *value = ObjectValue::Ref(tree[*r as usize].clone());
             }
@@ -329,18 +354,17 @@ impl Object {
         }
     }
 
-    pub(crate) fn from_dict(mut dict: Dictionary) -> Self {
+    pub(crate) fn from_dict(mut dict: PlistDictionary) -> Self {
         let classes_uid = dict.remove("$class").unwrap().into_uid().unwrap().get(); // unwrapping is safe, we previously check it with is_container()
         let mut fields = HashMap::with_capacity(dict.len());
         for (key, obj) in dict {
-            let decoded_obj =
-            if let Some(s) = obj.as_string() {
+            let decoded_obj = if let Some(s) = obj.as_string() {
                 if s == NULL_OBJECT_REFERENCE_NAME {
                     ObjectValue::NullRef
                 } else {
                     ObjectValue::String(obj.into_string().unwrap())
                 }
-            } else if let Value::Integer(i) = obj {
+            } else if let PlistValue::Integer(i) = obj {
                 ObjectValue::Integer(i)
             } else if let Some(f) = obj.as_real() {
                 ObjectValue::F64(f)
@@ -379,13 +403,20 @@ pub trait Decodable {
 
 #[cfg(test)]
 mod tests {
-    use simplelog::{SimpleLogger, LevelFilter, Config};
     use crate::NSKeyedUnarchiver;
+    use simplelog::{Config, LevelFilter, SimpleLogger};
 
     #[test]
     fn test1() {
         let _ = SimpleLogger::init(LevelFilter::Debug, Config::default());
         let unarchiver = NSKeyedUnarchiver::from_file("./MainWindow.nib").unwrap();
-        unarchiver.test();
+        println!("{:#?}", unarchiver.top());
+    }
+
+    #[test]
+    fn test2() {
+        let _ = SimpleLogger::init(LevelFilter::Debug, Config::default());
+        let unarchiver = NSKeyedUnarchiver::from_file("./NSAffineTransform2.plist").unwrap();
+        println!("{:#?}", unarchiver.top());
     }
 }
