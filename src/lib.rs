@@ -1,7 +1,13 @@
 mod error;
+#[cfg(feature="serde")]
+mod de;
+#[cfg(feature="serde")]
+mod de_play;
 
 use enum_as_inner::EnumAsInner;
 pub use error::*;
+#[cfg(feature="serde")]
+pub use de::*;
 use paste::paste;
 use plist::{Dictionary as PlistDictionary, Integer as PlistInteger, Value as PlistValue};
 use std::{
@@ -223,7 +229,7 @@ macro_rules! get_key {
     };
 }
 
-#[derive(Debug, EnumAsInner)]
+#[derive(Debug, EnumAsInner, Clone)]
 enum ObjectValue {
     String(String),
     Integer(PlistInteger),

@@ -5,7 +5,12 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["serde"]
+serde = ["dep:serde"]
+
 [dependencies]
+serde = { version = "1.0", features = ["derive"], optional = true }
 enum-as-inner = "0.6.0"
 log = "0.4.20"
 paste = "1.0.14"
