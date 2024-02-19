@@ -69,7 +69,7 @@ impl<'de, 'a> MapAccess<'de> for ObjectMapAccessor<'a, 'de> {
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
     where
         K: de::DeserializeSeed<'de> {
-        let borrowed = &*self.de.object.borrow();
+        let borrowed = &*self.de.object;
         let obj = borrowed.as_object().unwrap();
         let Some((key, _)) = obj.fields.iter().nth(self.currect_item) else {
             self.de.current_key = None;
@@ -82,7 +82,7 @@ impl<'de, 'a> MapAccess<'de> for ObjectMapAccessor<'a, 'de> {
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
     where
         V: de::DeserializeSeed<'de> {
-            let borrowed = &*self.de.object.borrow();
+            let borrowed = &*self.de.object;
             let obj = borrowed.as_object().unwrap();
             let (_, vec) = obj.fields.iter().nth(self.currect_item).unwrap();
             self.de.current_value = Some(vec.clone());
@@ -159,7 +159,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         log::debug!("deserialize_any");
-        match &*self.object.borrow() {
+        match self.object.as_ref() {
             crate::ArchiveValue::String(_) => self.deserialize_str(visitor),
             crate::ArchiveValue::Integer(i) => {
                 if i.as_signed().is_some() {
@@ -406,7 +406,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de> {
         log::debug!("deserialize_struct");
         debug!("name: {name}, fields: {fields:?}");
-        let r  = self.object.borrow();
+        let r  = self.object;
         let Some(obj) = r.as_object() else {
             return Err(DeError::ExpectedObject);
         };

@@ -25,30 +25,7 @@ pub(crate) const OBJECTS_KEY_NAME: &str = "$objects";
 pub(crate) const VERSION_KEY_NAME: &str = "$version";
 pub(crate) const NULL_OBJECT_REFERENCE_NAME: &str = "$null";
 
-#[derive(Clone)]
-pub struct ObjectRef(Rc<RefCell<ArchiveValue>>);
-impl ObjectRef {
-    pub fn new(r: ArchiveValue) -> Self {
-        Self(Rc::new(RefCell::new(r)))
-    }
-    pub fn borrow(&self) -> Ref<'_, ArchiveValue> {
-        self.0.as_ref().borrow()
-    }
-    pub(crate) fn borrow_mut(&self) -> RefMut<'_, ArchiveValue> {
-        self.0.as_ref().borrow_mut()
-    }
-}
-impl std::fmt::Debug for ObjectRef {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.borrow().fmt(f)
-    }
-}
-impl PartialEq for ObjectRef {
-    fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.0, &other.0)
-    }
-}
-
+pub type ObjectRef = Rc<ArchiveValue>;
 // Possible values inside of $objects
 #[derive(Debug, EnumAsInner)]
 pub enum ArchiveValue {
@@ -199,11 +176,20 @@ impl NSKeyedUnarchiver {
             } else {
                 panic!("Unexpected object type")
             };
-            decoded_objects.push(ObjectRef::new(decoded_obj));
+            decoded_objects.push(Rc::new(decoded_obj));
         }
 
+        // In order to avoid using RefCell to write object references into
+        // them only once, we can use this hack
+        let mut decoded_objects_raw = Vec::with_capacity(decoded_objects.len());
         for object in &decoded_objects {
-            let mut a = object.borrow_mut();
+            let raw = Rc::into_raw(Rc::clone(object)) as *mut ArchiveValue;
+            decoded_objects_raw.push(raw.clone());
+            unsafe {Rc::decrement_strong_count(raw)};
+        }
+
+        for ptr in &decoded_objects_raw {
+            let a = unsafe {&mut **ptr};
             if let Some(obj) = a.as_object_mut() {
                 obj.apply_object_tree(&decoded_objects)
             }
@@ -289,7 +275,7 @@ impl Object {
     pub fn decode_string(&self, key: &str) -> Result<String, Error> {
         // As far as I can tell all strings inside of objects are
         // linked with UIDs
-        let obj = get_key!(self, key, "ref").borrow();
+        let obj = get_key!(self, key, "ref");
         let Some(string) = obj.as_string() else {
             return Err(Error::WrongObjectValueType(
                 "string".to_string(),
@@ -330,19 +316,19 @@ impl Object {
     }
 
     pub fn classes(&self) -> Vec<String> {
-        let a = self.classes.as_ref().unwrap().borrow();
+        let a = self.classes.as_ref().unwrap();
         let b = a.as_classes().unwrap();
         b.to_vec()
     }
 
     pub fn class(&self) -> String {
-        let a = self.classes.as_ref().unwrap().borrow();
+        let a = self.classes.as_ref().unwrap();
         a.as_classes().unwrap()[0].to_string()
     }
 
     pub(crate) fn apply_object_tree(&mut self, tree: &[ObjectRef]) {
         self.classes = Some(tree[self.classes_uid as usize].clone());
-        if !self.classes.as_ref().unwrap().borrow().is_classes() {
+        if !self.classes.as_ref().unwrap().is_classes() {
             panic!("Incorrent Classes structure")
         }
 
