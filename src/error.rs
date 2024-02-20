@@ -43,8 +43,8 @@ pub enum DeError {
     ExpectedString,
     #[error("Expected integer")]
     ExpectedInteger,
-    #[error("Expected f64")]
-    ExpectedF64,
+    #[error("Expected real")]
+    ExpectedReal,
     #[error("Expected boolean")]
     ExpectedBoolean,
     #[error("Expected data")]
