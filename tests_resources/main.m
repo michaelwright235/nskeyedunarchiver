@@ -60,7 +60,6 @@ void simpleDict(void) {
 
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
-        archiveNSAffineTransform();
         plainString();
         nsData();
         simpleArray();

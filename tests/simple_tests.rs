@@ -1,5 +1,5 @@
-use nskeyedunarchiver::de::{Decodable, NSArray, NSData, NSDictionary, ObjectType};
-use nskeyedunarchiver::{as_object, object_types, DeError, Integer, NSKeyedUnarchiver, ObjectRef};
+use nskeyedunarchiver::de::{Decodable, NSArray, NSData, NSDictionary};
+use nskeyedunarchiver::{object_types, Integer, NSKeyedUnarchiver, ObjectRef};
 
 const PLIST_PATH: &str = "./tests_resources/plists/";
 
@@ -26,16 +26,18 @@ fn simple_array() {
 
     let root = open_file("simpleArray.plist");
     let mut decoded_data = NSArray::decode(root, &object_types!()).unwrap();
-    let parent0: Box<String> = decoded_data.remove(0).downcast().unwrap();
+    let parent0: Box<String> = decoded_data.remove_as_object::<String>(0).unwrap();
     assert_eq!(parent0.as_str(), "value1");
-    let parent1: Box<String> = decoded_data.remove(0).downcast().unwrap();
+    let parent1: Box<String> = decoded_data.remove_as_object::<String>(0).unwrap();
     assert_eq!(parent1.as_str(), "value2");
 
-    let mut parent2: Box<NSArray> = decoded_data.remove(0).downcast().unwrap();
-    let child1: Box<String> = parent2.remove(0).downcast().unwrap();
-    assert_eq!(child1.as_str(), "innerValue3");
-    let child2: Box<String> = parent2.remove(0).downcast().unwrap();
-    assert_eq!(child2.as_str(), "innerValue4");
+    let parent2: Vec<Box<String>> = decoded_data
+        .remove_as_object::<NSArray>(0)
+        .unwrap()
+        .try_into_objects::<String>()
+        .unwrap();
+    assert_eq!(parent2[0].as_str(), "innerValue3");
+    assert_eq!(parent2[1].as_str(), "innerValue4");
 }
 
 #[test]
@@ -52,28 +54,20 @@ fn simple_dict() {
     let mut decoded_data = NSDictionary::decode(root, &object_types!()).unwrap();
 
     let value1: Box<String> = decoded_data
-        .remove("First key")
-        .unwrap()
-        .downcast()
+        .remove_as_object::<String>("First key")
         .unwrap();
     assert_eq!(value1.as_str(), "First value");
 
     let value2: Box<String> = decoded_data
-        .remove("Second key")
-        .unwrap()
-        .downcast()
+        .remove_as_object::<String>("Second key")
         .unwrap();
     assert_eq!(value2.as_str(), "Second value");
 
-    let value3: Vec<Box<Integer>> = (decoded_data
-        .remove("Array key")
+    let value3: Vec<Box<Integer>> = decoded_data
+        .remove_as_object::<NSArray>("Array key")
         .unwrap()
-        .downcast()
-        .unwrap() as Box<NSArray>)
-        .into_inner()
-        .into_iter()
-        .map(|v| v.downcast().unwrap() as Box<Integer>)
-        .collect();
+        .try_into_objects::<Integer>()
+        .unwrap();
 
     assert_eq!(value3[0].as_unsigned().unwrap(), 1);
     assert_eq!(value3[1].as_unsigned().unwrap(), 2);
