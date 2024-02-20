@@ -1,13 +1,13 @@
-use super::{decode_any_object, Decodable, ObjectAny};
-use crate::{get_object, ArchiveValue, DeError, ObjectRef};
+use super::{object_ref_to_any, Decodable, ObjectType};
+use crate::{as_object, ArchiveValue, DeError, ObjectRef};
 use std::any::Any;
 use std::collections::HashMap;
 
 impl Decodable for String {
-    fn class() -> Option<&'static str> {
-        None
+    fn is_type_of(_classes: &[String]) -> bool {
+        false
     }
-    fn decode(object: ObjectRef, _types: &[ObjectAny]) -> Result<Self, DeError> {
+    fn decode(object: ObjectRef, _types: &[ObjectType]) -> Result<Self, DeError> {
         let Some(s) = object.as_string() else {
             return Err(DeError::ExpectedString);
         };
@@ -16,10 +16,10 @@ impl Decodable for String {
 }
 
 impl Decodable for u64 {
-    fn class() -> Option<&'static str> {
-        None
+    fn is_type_of(_classes: &[String]) -> bool {
+        false
     }
-    fn decode(object: ObjectRef, _types: &[ObjectAny]) -> Result<Self, DeError> {
+    fn decode(object: ObjectRef, _types: &[ObjectType]) -> Result<Self, DeError> {
         let Some(n) = object.as_integer() else {
             return Err(DeError::ExpectedInteger);
         };
@@ -31,10 +31,10 @@ impl Decodable for u64 {
 }
 
 impl Decodable for i64 {
-    fn class() -> Option<&'static str> {
-        None
+    fn is_type_of(_classes: &[String]) -> bool {
+        false
     }
-    fn decode(object: ObjectRef, _types: &[ObjectAny]) -> Result<Self, DeError> {
+    fn decode(object: ObjectRef, _types: &[ObjectType]) -> Result<Self, DeError> {
         let Some(n) = object.as_integer() else {
             return Err(DeError::ExpectedInteger);
         };
@@ -46,10 +46,10 @@ impl Decodable for i64 {
 }
 
 impl Decodable for f64 {
-    fn class() -> Option<&'static str> {
-        None
+    fn is_type_of(_classes: &[String]) -> bool {
+        false
     }
-    fn decode(object: ObjectRef, _types: &[ObjectAny]) -> Result<Self, DeError> {
+    fn decode(object: ObjectRef, _types: &[ObjectType]) -> Result<Self, DeError> {
         let Some(float) = object.as_f64() else {
             return Err(DeError::ExpectedInteger);
         };
@@ -63,11 +63,11 @@ pub struct NSArray {
 }
 
 impl Decodable for NSArray {
-    fn class() -> Option<&'static str> {
-        Some("NSArray")
+    fn is_type_of(classes: &[String]) -> bool {
+        classes[0] == "NSArray"
     }
-    fn decode(object: ObjectRef, types: &[ObjectAny]) -> Result<Self, DeError> {
-        let obj = get_object!(object);
+    fn decode(object: ObjectRef, types: &[ObjectType]) -> Result<Self, DeError> {
+        let obj = as_object!(object);
         let Ok(inner_objs) = obj.decode_array("NS.objects") else {
             return Err(DeError::Message(
                 "NSArray: Expected array of objects".to_string(),
@@ -95,7 +95,7 @@ impl Decodable for NSArray {
                     decoded_objs.push(Box::new(f) as Box<dyn Any>);
                 }
                 ArchiveValue::Object(_) => {
-                    decoded_objs.push(decode_any_object(obj, types)?);
+                    decoded_objs.push(object_ref_to_any(obj, types)?);
                 }
                 ArchiveValue::NullRef => (),
                 ArchiveValue::Classes(_) => (),
@@ -123,18 +123,12 @@ pub struct NSDictionary {
 }
 
 impl Decodable for NSDictionary {
-    fn class() -> Option<&'static str>
-    where
-        Self: Sized,
-    {
-        Some("NSDictionary")
+    fn is_type_of(classes: &[String]) -> bool {
+        classes[0] == "NSDictionary"
     }
 
-    fn decode(object: ObjectRef, types: &[ObjectAny]) -> Result<Self, DeError>
-    where
-        Self: Sized,
-    {
-        let obj = get_object!(object);
+    fn decode(object: ObjectRef, types: &[ObjectType]) -> Result<Self, DeError> {
+        let obj = as_object!(object);
         let raw_keys = obj.decode_array("NS.keys")?;
         let mut keys = Vec::with_capacity(raw_keys.len());
         for key in raw_keys {
@@ -159,6 +153,9 @@ impl Decodable for NSDictionary {
 }
 
 impl NSDictionary {
+    pub fn hashmap(&self) -> &HashMap<String, Box<dyn Any>> {
+        &self.hashmap
+    }
     pub fn into_inner(self) -> HashMap<String, Box<dyn Any>> {
         self.hashmap
     }

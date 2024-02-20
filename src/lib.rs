@@ -3,8 +3,6 @@ mod error;
 
 use enum_as_inner::EnumAsInner;
 pub use error::*;
-#[doc(hidden)]
-pub use paste;
 use plist::{Dictionary as PlistDictionary, Integer as PlistInteger, Value as PlistValue};
 use std::{collections::HashMap, rc::Rc};
 
@@ -189,39 +187,35 @@ impl NSKeyedUnarchiver {
 }
 
 macro_rules! get_key {
-    ($self:ident, $key:ident, $typ:literal) => {
-        paste::paste! {
-            {
-                if !$self.contains_key($key) {
-                    return Err(
-                        DeError::MissingObjectKey(
-                            format!(
-                                "Missing key '{0}' for object '{1}'",
-                                $key,
-                                $self.class()
-                            )
-                        )
-                    );
-                }
-                let raw_object = $self.fields.get($key).unwrap();
-                let obj = raw_object.[<as_$typ>]();
-                if obj.is_none() {
-                    return Err(
-                        DeError::IncorrectObjectValueType(
-                            format!(
-                                "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
-                                $typ,
-                                $self.class(),
-                                raw_object.as_plain_type(),
-                                $key.to_string()
-                            )
-                        )
-                    );
-                }
-                obj.unwrap()
-            }
+    ($self:ident, $key:ident, $typ:literal) => {{
+        if !$self.contains_key($key) {
+            return Err(
+                DeError::MissingObjectKey(
+                    format!(
+                        "Missing key '{0}' for object '{1}'",
+                        $key,
+                        $self.class()
+                    )
+                )
+            );
         }
-    };
+        let raw_object = $self.fields.get($key).unwrap();
+        let obj = paste::paste! {raw_object.[<as_$typ>]() };
+        if obj.is_none() {
+            return Err(
+                DeError::IncorrectObjectValueType(
+                    format!(
+                        "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
+                        $typ,
+                        $self.class(),
+                        raw_object.as_plain_type(),
+                        $key.to_string()
+                    )
+                )
+            );
+        }
+        obj.unwrap()
+    }}
 }
 
 #[derive(Debug, EnumAsInner, Clone)]

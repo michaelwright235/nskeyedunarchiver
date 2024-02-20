@@ -3,57 +3,56 @@ pub use impls::*;
 
 use crate::{DeError, ObjectRef};
 use std::any::{Any, TypeId};
+use std::fmt::Debug;
 
-pub trait Decodable: std::fmt::Debug + Sized {
-    fn class() -> Option<&'static str>;
-    fn decode(object: ObjectRef, types: &[ObjectAny]) -> Result<Self, DeError>;
+pub trait Decodable: Debug + Sized {
+    fn is_type_of(classes: &[String]) -> bool;
+    fn decode(object: ObjectRef, types: &[ObjectType]) -> Result<Self, DeError>;
     fn decode_as_any(
         object: ObjectRef,
-        types: &[ObjectAny],
+        types: &[ObjectType],
     ) -> Result<Box<dyn std::any::Any>, DeError>
     where
         Self: 'static,
     {
         Ok(Box::new(Self::decode(object, types)?) as Box<dyn std::any::Any>)
     }
-    fn as_object_any() -> ObjectAny
+    fn as_object_type() -> ObjectType
     where
         Self: 'static,
     {
-        ObjectAny::new(TypeId::of::<Self>(), Self::class, Self::decode_as_any)
+        ObjectType::new(TypeId::of::<Self>(), Self::is_type_of, Self::decode_as_any)
     }
 }
 
-pub type ObjectClassFn = fn() -> Option<&'static str>;
-pub type ObjectDecodeFn = fn(obj: ObjectRef, types: &[ObjectAny]) -> Result<Box<dyn Any>, DeError>;
-pub type ObjectType = (TypeId, ObjectClassFn, ObjectDecodeFn);
-pub type ObjectTypes = Vec<ObjectType>;
+type IsTypeOfFn = fn(classes: &[String]) -> bool;
+type DecodeAsAnyFn = fn(obj: ObjectRef, types: &[ObjectType]) -> Result<Box<dyn Any>, DeError>;
 
-pub struct ObjectAny(TypeId, ObjectClassFn, ObjectDecodeFn);
-impl ObjectAny {
-    pub fn new(t: TypeId, c: ObjectClassFn, d: ObjectDecodeFn) -> Self {
+pub struct ObjectType(TypeId, IsTypeOfFn, DecodeAsAnyFn);
+impl ObjectType {
+    pub fn new(t: TypeId, c: IsTypeOfFn, d: DecodeAsAnyFn) -> Self {
         Self(t, c, d)
     }
     pub fn type_id(&self) -> TypeId {
         self.0
     }
-    pub fn class(&self) -> Option<&'static str> {
-        self.1()
+    pub fn is_type_of(&self, classes: &[String]) -> bool {
+        self.1(classes)
     }
-    pub fn decode(&self, obj: ObjectRef, types: &[ObjectAny]) -> Result<Box<dyn Any>, DeError> {
+    pub fn decode(&self, obj: ObjectRef, types: &[ObjectType]) -> Result<Box<dyn Any>, DeError> {
         self.2(obj, types)
     }
 }
 
 #[macro_export]
-macro_rules! make_types {
+macro_rules! object_types {
     ($($name:ident),*) => {
         {
             Vec::from([
-                $crate::de::NSArray::as_object_any(),
-                $crate::de::NSDictionary::as_object_any(),
+                $crate::de::NSArray::as_object_type(),
+                $crate::de::NSDictionary::as_object_type(),
                 $(
-                    $name::as_object_any()
+                    $name::as_object_type()
                 ),*
             ])
         }
@@ -61,7 +60,7 @@ macro_rules! make_types {
 }
 
 #[macro_export]
-macro_rules! get_object {
+macro_rules! as_object {
     ($obj_ref:ident) => {{
         let Some(obj) = $obj_ref.as_object() else {
             return Err($crate::DeError::ExpectedObject);
@@ -70,31 +69,31 @@ macro_rules! get_object {
     }};
 }
 
-pub fn decode_any_object(
+pub fn object_ref_to_any(
     object_ref: ObjectRef,
-    types: &[ObjectAny],
+    types: &[ObjectType],
 ) -> Result<Box<dyn Any>, DeError> {
     let Some(object) = object_ref.as_object() else {
         return Err(DeError::ExpectedObject);
     };
-    let class = object.class();
+    let classes = object.classes();
     let mut result = None;
     for typ in types {
-        if typ.class().unwrap() == &class {
+        if typ.is_type_of(&classes) {
             result = Some(typ.decode(object_ref.clone(), types));
         }
     }
     match result {
         Some(val) => val,
-        None => Err(DeError::Message(format!("Undecodable object: {class}"))),
+        None => Err(DeError::Message(format!("Undecodable object: {}", classes[0]))),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{DeError, NSKeyedUnarchiver, ObjectRef};
+    use crate::{as_object, object_types, DeError, NSKeyedUnarchiver, ObjectRef};
 
-    use super::{Decodable, ObjectAny};
+    use crate::de::{Decodable, ObjectType};
 
     #[derive(Debug)]
     struct NSAffineTransform<'a> {
@@ -103,21 +102,13 @@ mod tests {
     }
 
     impl Decodable for NSAffineTransform<'_> {
-        fn class() -> Option<&'static str>
-        where
-            Self: Sized,
-        {
-            Some("NSAffineTransform")
+        fn is_type_of(classes: &[String]) -> bool {
+            classes[0] == "NSAffineTransform"
         }
 
-        fn decode(
-            object: crate::ObjectRef,
-            _types: &[super::ObjectAny],
-        ) -> Result<Self, crate::DeError>
-        where
-            Self: Sized,
+        fn decode(object: ObjectRef, _types: &[ObjectType]) -> Result<Self, DeError>
         {
-            let obj = get_object!(object);
+            let obj = as_object!(object);
             let data = obj.decode_data("NSTransformStruct")?.to_vec();
             Ok(Self { data, p: None })
         }
@@ -127,7 +118,7 @@ mod tests {
     fn a() {
         let unarchiver = NSKeyedUnarchiver::from_file("./NSAffineTransform3.plist").unwrap();
         let top_item = unarchiver.top()["root"].clone();
-        //let result = NSAffineTransform::decode(top_item, &make_types!(NSAffineTransform));
-        //println!("{:#?}", result);
+        let result = NSAffineTransform::decode(top_item, &object_types!(NSAffineTransform));
+        println!("{:#?}", result);
     }
 }
