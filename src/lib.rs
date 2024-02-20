@@ -152,18 +152,18 @@ impl NSKeyedUnarchiver {
                             if let Some(s) = class.into_string() {
                                 classes.push(s)
                             } else {
-                                panic!("Incorrect Classes object")
+                                return Err(Error::DecodingObjectError("Incorrect Classes object".to_string()));
                             }
                         }
                         ArchiveValue::Classes(classes)
                     } else {
-                        panic!("Incorrect Classes object")
+                        return Err(Error::DecodingObjectError("Incorrect Classes object".to_string()));
                     }
                 } else {
-                    panic!("Unexpected object type")
+                    return Err(Error::DecodingObjectError("Unexpected object type".to_string()));
                 }
             } else {
-                panic!("Unexpected object type")
+                return Err(Error::DecodingObjectError("Unexpected object type".to_string()));
             };
             decoded_objects.push(Rc::new(decoded_obj));
         }
@@ -180,7 +180,7 @@ impl NSKeyedUnarchiver {
         for ptr in &decoded_objects_raw {
             let a = unsafe { &mut **ptr };
             if let Some(obj) = a.as_object_mut() {
-                obj.apply_object_tree(&decoded_objects)
+                obj.apply_object_tree(&decoded_objects)?
             }
         }
         Ok(decoded_objects)
@@ -333,10 +333,10 @@ impl Object {
         a.as_classes().unwrap()[0].to_string()
     }
 
-    pub(crate) fn apply_object_tree(&mut self, tree: &[ObjectRef]) {
+    pub(crate) fn apply_object_tree(&mut self, tree: &[ObjectRef]) -> Result<(), Error> {
         self.classes = Some(tree[self.classes_uid as usize].clone());
         if !self.classes.as_ref().unwrap().is_classes() {
-            panic!("Incorrent Classes structure")
+            return Err(Error::DecodingObjectError("Incorrent Classes structure".to_string()));
         }
 
         for value in self.fields.values_mut() {
@@ -351,6 +351,7 @@ impl Object {
                 *value = ObjectValue::RefArray(ref_arr);
             }
         }
+        Ok(())
     }
 
     pub(crate) fn from_dict(mut dict: PlistDictionary) -> Result<Self, Error> {
