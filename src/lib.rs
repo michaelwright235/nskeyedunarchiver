@@ -152,18 +152,26 @@ impl NSKeyedUnarchiver {
                             if let Some(s) = class.into_string() {
                                 classes.push(s)
                             } else {
-                                return Err(Error::DecodingObjectError("Incorrect Classes object".to_string()));
+                                return Err(Error::DecodingObjectError(
+                                    "Incorrect Classes object".to_string(),
+                                ));
                             }
                         }
                         ArchiveValue::Classes(classes)
                     } else {
-                        return Err(Error::DecodingObjectError("Incorrect Classes object".to_string()));
+                        return Err(Error::DecodingObjectError(
+                            "Incorrect Classes object".to_string(),
+                        ));
                     }
                 } else {
-                    return Err(Error::DecodingObjectError("Unexpected object type".to_string()));
+                    return Err(Error::DecodingObjectError(
+                        "Unexpected object type".to_string(),
+                    ));
                 }
             } else {
-                return Err(Error::DecodingObjectError("Unexpected object type".to_string()));
+                return Err(Error::DecodingObjectError(
+                    "Unexpected object type".to_string(),
+                ));
             };
             decoded_objects.push(Rc::new(decoded_obj));
         }
@@ -173,7 +181,7 @@ impl NSKeyedUnarchiver {
         let mut decoded_objects_raw = Vec::with_capacity(decoded_objects.len());
         for object in &decoded_objects {
             let raw = Rc::into_raw(Rc::clone(object)) as *mut ArchiveValue;
-            decoded_objects_raw.push(raw.clone());
+            decoded_objects_raw.push(raw);
             unsafe { Rc::decrement_strong_count(raw) };
         }
 
@@ -190,33 +198,25 @@ impl NSKeyedUnarchiver {
 macro_rules! get_key {
     ($self:ident, $key:ident, $typ:literal) => {{
         if !$self.contains_key($key) {
-            return Err(
-                DeError::MissingObjectKey(
-                    format!(
-                        "Missing key '{0}' for object '{1}'",
-                        $key,
-                        $self.class()
-                    )
-                )
-            );
+            return Err(DeError::MissingObjectKey(format!(
+                "Missing key '{0}' for object '{1}'",
+                $key,
+                $self.class()
+            )));
         }
         let raw_object = $self.fields.get($key).unwrap();
         let obj = paste::paste! {raw_object.[<as_$typ>]() };
         if obj.is_none() {
-            return Err(
-                DeError::IncorrectObjectValueType(
-                    format!(
-                        "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
-                        $typ,
-                        $self.class(),
-                        raw_object.as_plain_type(),
-                        $key.to_string()
-                    )
-                )
-            );
+            return Err(DeError::IncorrectObjectValueType(format!(
+                "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
+                $typ,
+                $self.class(),
+                raw_object.as_plain_type(),
+                $key.to_string()
+            )));
         }
         obj.unwrap()
-    }}
+    }};
 }
 
 #[derive(Debug, EnumAsInner, Clone)]
@@ -336,7 +336,9 @@ impl Object {
     pub(crate) fn apply_object_tree(&mut self, tree: &[ObjectRef]) -> Result<(), Error> {
         self.classes = Some(tree[self.classes_uid as usize].clone());
         if !self.classes.as_ref().unwrap().is_classes() {
-            return Err(Error::DecodingObjectError("Incorrent Classes structure".to_string()));
+            return Err(Error::DecodingObjectError(
+                "Incorrent Classes structure".to_string(),
+            ));
         }
 
         for value in self.fields.values_mut() {

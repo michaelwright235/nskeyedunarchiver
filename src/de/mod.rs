@@ -82,6 +82,9 @@ pub fn object_ref_to_any(
     }
     match result {
         Some(val) => val,
-        None => Err(DeError::Message(format!("Undecodable object: {}", classes[0]))),
+        None => Err(DeError::Message(format!(
+            "Undecodable object: {}",
+            classes[0]
+        ))),
     }
 }
