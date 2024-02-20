@@ -1,15 +1,12 @@
-mod error;
 pub mod de;
+mod error;
 
 use enum_as_inner::EnumAsInner;
 pub use error::*;
 #[doc(hidden)]
 pub use paste;
 use plist::{Dictionary as PlistDictionary, Integer as PlistInteger, Value as PlistValue};
-use std::{
-    collections::HashMap,
-    rc::Rc,
-};
+use std::{collections::HashMap, rc::Rc};
 
 pub(crate) const ARCHIVER: &str = "NSKeyedArchiver";
 pub(crate) const ARCHIVER_VERSION: u64 = 100000;
@@ -66,9 +63,7 @@ impl NSKeyedUnarchiver {
         // Check $top key
         let top_key = Self::get_header_key(&mut dict, TOP_KEY_NAME)?;
         let Some(top) = top_key.to_owned().into_dictionary() else {
-            return Err(
-                IncorrectFormatError::WrongValueType(TOP_KEY_NAME, "Dictionary").into(),
-            );
+            return Err(IncorrectFormatError::WrongValueType(TOP_KEY_NAME, "Dictionary").into());
         };
 
         // Check $objects key
@@ -180,11 +175,11 @@ impl NSKeyedUnarchiver {
         for object in &decoded_objects {
             let raw = Rc::into_raw(Rc::clone(object)) as *mut ArchiveValue;
             decoded_objects_raw.push(raw.clone());
-            unsafe {Rc::decrement_strong_count(raw)};
+            unsafe { Rc::decrement_strong_count(raw) };
         }
 
         for ptr in &decoded_objects_raw {
-            let a = unsafe {&mut **ptr};
+            let a = unsafe { &mut **ptr };
             if let Some(obj) = a.as_object_mut() {
                 obj.apply_object_tree(&decoded_objects)
             }
@@ -284,30 +279,26 @@ impl Object {
     pub fn decode_i64(&self, key: &str) -> Result<i64, DeError> {
         match get_key!(self, key, "integer").as_signed() {
             Some(i) => Ok(i),
-            None => Err(DeError::IncorrectObjectValueType(
-                format!(
-                    "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
-                    "unsigned integer",
-                    self.class(),
-                    "signed integer",
-                    key
-                )
-            )),
+            None => Err(DeError::IncorrectObjectValueType(format!(
+                "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
+                "unsigned integer",
+                self.class(),
+                "signed integer",
+                key
+            ))),
         }
     }
 
     pub fn decode_u64(&self, key: &str) -> Result<u64, DeError> {
         match get_key!(self, key, "integer").as_unsigned() {
             Some(u) => Ok(u),
-            None => Err(DeError::IncorrectObjectValueType(
-                format!(
-                    "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
-                    "signed integer",
-                    self.class(),
-                    "unsigned integer",
-                    key
-                )
-            )),
+            None => Err(DeError::IncorrectObjectValueType(format!(
+                "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
+                "signed integer",
+                self.class(),
+                "unsigned integer",
+                key
+            ))),
         }
     }
 
@@ -316,15 +307,13 @@ impl Object {
         // linked with UIDs
         let obj = get_key!(self, key, "ref");
         let Some(string) = obj.as_string() else {
-            return Err(DeError::IncorrectObjectValueType(
-                format!(
-                    "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
-                    "object",
-                    self.class(),
-                    "string",
-                    key
-                )
-            ));
+            return Err(DeError::IncorrectObjectValueType(format!(
+                "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
+                "object",
+                self.class(),
+                "string",
+                key
+            )));
         };
 
         Ok(string.to_string())
@@ -347,13 +336,11 @@ impl Object {
 
     pub fn is_null_ref(&self, key: &str) -> Result<bool, DeError> {
         if !self.contains_key(key) {
-            return Err(DeError::MissingObjectKey(
-                format!(
-                    "Missing key '{0}' for object '{1}'",
-                    self.class(),
-                    key
-                )
-            ));
+            return Err(DeError::MissingObjectKey(format!(
+                "Missing key '{0}' for object '{1}'",
+                self.class(),
+                key
+            )));
         }
         Ok(self.fields.get(key).unwrap().is_null_ref())
     }
@@ -415,7 +402,9 @@ impl Object {
                 let mut arr_of_uids = Vec::with_capacity(arr.len());
                 for val in obj.into_array().unwrap() {
                     if val.as_uid().is_none() {
-                        return Err(Error::DecodingObjectError("Array should countain only object references".to_string()));
+                        return Err(Error::DecodingObjectError(
+                            "Array should countain only object references".to_string(),
+                        ));
                     } else {
                         arr_of_uids.push(val.into_uid().unwrap().get());
                     }
@@ -424,7 +413,10 @@ impl Object {
             } else if obj.as_uid().is_some() {
                 ObjectValue::RawRef(obj.into_uid().unwrap().get())
             } else {
-                return Err(Error::DecodingObjectError(format!("Enexpected object value type: {:?}", obj)));
+                return Err(Error::DecodingObjectError(format!(
+                    "Enexpected object value type: {:?}",
+                    obj
+                )));
             };
             fields.insert(key, decoded_obj);
         }

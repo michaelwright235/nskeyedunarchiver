@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use super::{decode_any_object, Decodable, ObjectAny};
+use crate::{get_object, ArchiveValue, DeError, ObjectRef};
 use std::any::Any;
-use crate::{ArchiveValue, DeError, ObjectRef, get_object};
-use super::{Decodable, ObjectAny, decode_any_object};
+use std::collections::HashMap;
 
 impl Decodable for String {
     fn class() -> Option<&'static str> {
@@ -69,7 +69,9 @@ impl Decodable for NSArray {
     fn decode(object: ObjectRef, types: &[ObjectAny]) -> Result<Self, DeError> {
         let obj = get_object!(object);
         let Ok(inner_objs) = obj.decode_array("NS.objects") else {
-            return Err(DeError::Message("NSArray: Expected array of objects".to_string()))
+            return Err(DeError::Message(
+                "NSArray: Expected array of objects".to_string(),
+            ));
         };
 
         let mut decoded_objs = Vec::with_capacity(inner_objs.len());
@@ -78,33 +80,30 @@ impl Decodable for NSArray {
                 ArchiveValue::String(_) => {
                     let s = String::decode(obj.clone(), &[])?;
                     decoded_objs.push(Box::new(s) as Box<dyn Any>);
-                },
+                }
                 ArchiveValue::Integer(n) => {
                     if n.as_signed().is_some() {
-                        let i = i64::decode(obj.clone(),  &[])?;
+                        let i = i64::decode(obj.clone(), &[])?;
                         decoded_objs.push(Box::new(i) as Box<dyn Any>);
-                    }
-                    else {
-                        let u = u64::decode(obj.clone(),  &[])?;
+                    } else {
+                        let u = u64::decode(obj.clone(), &[])?;
                         decoded_objs.push(Box::new(u) as Box<dyn Any>);
                     }
-                },
+                }
                 ArchiveValue::F64(_) => {
-                        let f = f64::decode(obj.clone(),  &[])?;
-                        decoded_objs.push(Box::new(f) as Box<dyn Any>);
-                },
+                    let f = f64::decode(obj.clone(), &[])?;
+                    decoded_objs.push(Box::new(f) as Box<dyn Any>);
+                }
                 ArchiveValue::Object(_) => {
-                    decoded_objs.push(
-                        decode_any_object(obj, types)?
-                    );
-                },
+                    decoded_objs.push(decode_any_object(obj, types)?);
+                }
                 ArchiveValue::NullRef => (),
                 ArchiveValue::Classes(_) => (),
             }
         }
 
         Ok(Self {
-            objects: decoded_objs
+            objects: decoded_objs,
         })
     }
 }
@@ -120,15 +119,21 @@ impl NSArray {
 
 #[derive(Debug)]
 pub struct NSDictionary {
-    hashmap: HashMap<String, Box<dyn Any>>
+    hashmap: HashMap<String, Box<dyn Any>>,
 }
 
 impl Decodable for NSDictionary {
-    fn class() -> Option<&'static str> where Self: Sized {
+    fn class() -> Option<&'static str>
+    where
+        Self: Sized,
+    {
         Some("NSDictionary")
     }
 
-    fn decode(object: ObjectRef, types: &[ObjectAny]) -> Result<Self, DeError> where Self:Sized {
+    fn decode(object: ObjectRef, types: &[ObjectAny]) -> Result<Self, DeError>
+    where
+        Self: Sized,
+    {
         let obj = get_object!(object);
         let raw_keys = obj.decode_array("NS.keys")?;
         let mut keys = Vec::with_capacity(raw_keys.len());
@@ -141,7 +146,9 @@ impl Decodable for NSDictionary {
         let mut objects = NSArray::decode(object, types)?.into_inner();
 
         if keys.len() != objects.len() {
-            return Err(DeError::Message("NSDictionary: The number of keys is not equal to the number of values".to_string()));
+            return Err(DeError::Message(
+                "NSDictionary: The number of keys is not equal to the number of values".to_string(),
+            ));
         }
         let mut hashmap = HashMap::with_capacity(keys.len());
         for _ in 0..keys.len() {

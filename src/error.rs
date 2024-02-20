@@ -14,7 +14,7 @@ pub enum Error {
     #[error("Wrong object value type. Expected '{0}' for key '{1}'")]
     WrongObjectValueType(String, String),
     #[error("{0}")]
-    DecodingObjectError(String)
+    DecodingObjectError(String),
 }
 
 impl From<IncorrectFormatError> for Error {
