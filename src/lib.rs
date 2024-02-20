@@ -3,7 +3,8 @@ mod error;
 
 use enum_as_inner::EnumAsInner;
 pub use error::*;
-use plist::{Dictionary as PlistDictionary, Integer as PlistInteger, Value as PlistValue};
+pub use plist::Integer;
+use plist::{Dictionary as PlistDictionary, Value as PlistValue};
 use std::{collections::HashMap, rc::Rc};
 
 pub(crate) const ARCHIVER: &str = "NSKeyedArchiver";
@@ -20,8 +21,8 @@ pub type ObjectRef = Rc<ArchiveValue>;
 #[derive(Debug, EnumAsInner)]
 pub enum ArchiveValue {
     String(String),
-    Integer(PlistInteger),
-    F64(f64),
+    Integer(Integer),
+    Real(f64),
     NullRef,
     Classes(Vec<String>),
     Object(Object),
@@ -134,7 +135,7 @@ impl NSKeyedUnarchiver {
             } else if let PlistValue::Integer(i) = obj {
                 ArchiveValue::Integer(i)
             } else if let Some(f) = obj.as_real() {
-                ArchiveValue::F64(f)
+                ArchiveValue::Real(f)
             } else if let Some(dict) = obj.as_dictionary() {
                 if Self::is_container(&obj) {
                     ArchiveValue::Object(Object::from_dict(obj.into_dictionary().unwrap())?)
@@ -221,8 +222,8 @@ macro_rules! get_key {
 #[derive(Debug, EnumAsInner, Clone)]
 enum ObjectValue {
     String(String),
-    Integer(PlistInteger),
-    F64(f64),
+    Integer(Integer),
+    Real(f64),
     Boolean(bool),
     Data(Vec<u8>),
     RefArray(Vec<ObjectRef>),
@@ -238,7 +239,7 @@ impl ObjectValue {
         match self {
             ObjectValue::String(_) => "string",
             ObjectValue::Integer(_) => "integer",
-            ObjectValue::F64(_) => "f64",
+            ObjectValue::Real(_) => "f64",
             ObjectValue::Boolean(_) => "boolean",
             ObjectValue::Data(_) => "data",
             ObjectValue::RefArray(_) => "array of objects references",
@@ -266,34 +267,12 @@ impl Object {
         Ok(get_key!(self, key, "data"))
     }
 
-    pub fn decode_f64(&self, key: &str) -> Result<f64, DeError> {
-        Ok(*get_key!(self, key, "f64"))
+    pub fn decode_real(&self, key: &str) -> Result<f64, DeError> {
+        Ok(*get_key!(self, key, "real"))
     }
 
-    pub fn decode_i64(&self, key: &str) -> Result<i64, DeError> {
-        match get_key!(self, key, "integer").as_signed() {
-            Some(i) => Ok(i),
-            None => Err(DeError::IncorrectObjectValueType(format!(
-                "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
-                "unsigned integer",
-                self.class(),
-                "signed integer",
-                key
-            ))),
-        }
-    }
-
-    pub fn decode_u64(&self, key: &str) -> Result<u64, DeError> {
-        match get_key!(self, key, "integer").as_unsigned() {
-            Some(u) => Ok(u),
-            None => Err(DeError::IncorrectObjectValueType(format!(
-                "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
-                "signed integer",
-                self.class(),
-                "unsigned integer",
-                key
-            ))),
-        }
+    pub fn decode_integer(&self, key: &str) -> Result<Integer, DeError> {
+        Ok(*get_key!(self, key, "integer"))
     }
 
     pub fn decode_string(&self, key: &str) -> Result<String, DeError> {
@@ -387,7 +366,7 @@ impl Object {
             } else if let PlistValue::Integer(i) = obj {
                 ObjectValue::Integer(i)
             } else if let Some(f) = obj.as_real() {
-                ObjectValue::F64(f)
+                ObjectValue::Real(f)
             } else if let Some(b) = obj.as_boolean() {
                 ObjectValue::Boolean(b)
             } else if obj.as_data().is_some() {

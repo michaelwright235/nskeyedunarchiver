@@ -15,42 +15,12 @@ impl Decodable for String {
     }
 }
 
-impl Decodable for u64 {
-    fn is_type_of(_classes: &[String]) -> bool {
-        false
-    }
-    fn decode(object: ObjectRef, _types: &[ObjectType]) -> Result<Self, DeError> {
-        let Some(n) = object.as_integer() else {
-            return Err(DeError::ExpectedInteger);
-        };
-        let Some(unsigned) = n.as_unsigned() else {
-            return Err(DeError::Message("Expected unsigned integer".to_string()));
-        };
-        Ok(unsigned)
-    }
-}
-
-impl Decodable for i64 {
-    fn is_type_of(_classes: &[String]) -> bool {
-        false
-    }
-    fn decode(object: ObjectRef, _types: &[ObjectType]) -> Result<Self, DeError> {
-        let Some(n) = object.as_integer() else {
-            return Err(DeError::ExpectedInteger);
-        };
-        let Some(signed) = n.as_signed() else {
-            return Err(DeError::Message("Expected signed integer".to_string()));
-        };
-        Ok(signed)
-    }
-}
-
 impl Decodable for f64 {
     fn is_type_of(_classes: &[String]) -> bool {
         false
     }
     fn decode(object: ObjectRef, _types: &[ObjectType]) -> Result<Self, DeError> {
-        let Some(float) = object.as_f64() else {
+        let Some(float) = object.as_real() else {
             return Err(DeError::ExpectedInteger);
         };
         Ok(*float)
@@ -79,15 +49,9 @@ impl Decodable for NSArray {
                     decoded_objs.push(Box::new(s) as Box<dyn Any>);
                 }
                 ArchiveValue::Integer(n) => {
-                    if n.as_signed().is_some() {
-                        let i = i64::decode(obj.clone(), &[])?;
-                        decoded_objs.push(Box::new(i) as Box<dyn Any>);
-                    } else {
-                        let u = u64::decode(obj.clone(), &[])?;
-                        decoded_objs.push(Box::new(u) as Box<dyn Any>);
-                    }
+                    decoded_objs.push(Box::new(*n) as Box<dyn Any>);
                 }
-                ArchiveValue::F64(_) => {
+                ArchiveValue::Real(_) => {
                     let f = f64::decode(obj.clone(), &[])?;
                     decoded_objs.push(Box::new(f) as Box<dyn Any>);
                 }
