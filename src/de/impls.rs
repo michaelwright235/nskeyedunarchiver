@@ -57,10 +57,7 @@ impl Decodable for f64 {
     }
 }
 
-#[derive(Debug)]
-pub struct NSArray {
-    objects: Vec<Box<dyn Any>>, // NS.objects
-}
+pub type NSArray = Vec<Box<dyn Any>>;
 
 impl Decodable for NSArray {
     fn is_type_of(classes: &[String]) -> bool {
@@ -102,25 +99,11 @@ impl Decodable for NSArray {
             }
         }
 
-        Ok(Self {
-            objects: decoded_objs,
-        })
+        Ok(decoded_objs)
     }
 }
 
-impl NSArray {
-    pub fn objects(&self) -> &[Box<dyn Any>] {
-        &self.objects
-    }
-    pub fn into_inner(self) -> Vec<Box<dyn Any>> {
-        self.objects
-    }
-}
-
-#[derive(Debug)]
-pub struct NSDictionary {
-    hashmap: HashMap<String, Box<dyn Any>>,
-}
+pub type NSDictionary = HashMap<String, Box<dyn Any>>;
 
 impl Decodable for NSDictionary {
     fn is_type_of(classes: &[String]) -> bool {
@@ -137,7 +120,7 @@ impl Decodable for NSDictionary {
             };
             keys.push(name.to_string());
         }
-        let mut objects = NSArray::decode(object, types)?.into_inner();
+        let mut objects = NSArray::decode(object, types)?;
 
         if keys.len() != objects.len() {
             return Err(DeError::Message(
@@ -148,15 +131,6 @@ impl Decodable for NSDictionary {
         for _ in 0..keys.len() {
             hashmap.insert(keys.pop().unwrap(), objects.pop().unwrap());
         }
-        Ok(Self { hashmap })
-    }
-}
-
-impl NSDictionary {
-    pub fn hashmap(&self) -> &HashMap<String, Box<dyn Any>> {
-        &self.hashmap
-    }
-    pub fn into_inner(self) -> HashMap<String, Box<dyn Any>> {
-        self.hashmap
+        Ok(hashmap)
     }
 }
