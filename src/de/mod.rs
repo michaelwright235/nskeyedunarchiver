@@ -3,9 +3,8 @@ pub use impls::*;
 
 use crate::{DeError, ObjectRef};
 use std::any::{Any, TypeId};
-use std::fmt::Debug;
 
-pub trait Decodable: Debug + Sized {
+pub trait Decodable: Sized {
     fn is_type_of(classes: &[String]) -> bool;
     fn decode(object: ObjectRef, types: &[ObjectType]) -> Result<Self, DeError>;
     fn decode_as_any(
@@ -47,15 +46,13 @@ impl ObjectType {
 #[macro_export]
 macro_rules! object_types {
     ($($name:ident),*) => {
-        {
-            Vec::from([
-                $crate::de::NSArray::as_object_type(),
-                $crate::de::NSDictionary::as_object_type(),
-                $(
-                    $name::as_object_type()
-                ),*
-            ])
-        }
+        Vec::from([
+            $crate::de::NSArray::as_object_type(),
+            $crate::de::NSDictionary::as_object_type(),
+            $(
+                $name::as_object_type()
+            ),*
+        ])
     };
 }
 
@@ -86,39 +83,5 @@ pub fn object_ref_to_any(
     match result {
         Some(val) => val,
         None => Err(DeError::Message(format!("Undecodable object: {}", classes[0]))),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{as_object, object_types, DeError, NSKeyedUnarchiver, ObjectRef};
-
-    use crate::de::{Decodable, ObjectType};
-
-    #[derive(Debug)]
-    struct NSAffineTransform<'a> {
-        data: Vec<u8>,
-        p: Option<&'a str>,
-    }
-
-    impl Decodable for NSAffineTransform<'_> {
-        fn is_type_of(classes: &[String]) -> bool {
-            classes[0] == "NSAffineTransform"
-        }
-
-        fn decode(object: ObjectRef, _types: &[ObjectType]) -> Result<Self, DeError>
-        {
-            let obj = as_object!(object);
-            let data = obj.decode_data("NSTransformStruct")?.to_vec();
-            Ok(Self { data, p: None })
-        }
-    }
-
-    #[test]
-    fn a() {
-        let unarchiver = NSKeyedUnarchiver::from_file("./NSAffineTransform3.plist").unwrap();
-        let top_item = unarchiver.top()["root"].clone();
-        let result = NSAffineTransform::decode(top_item, &object_types!(NSAffineTransform));
-        println!("{:#?}", result);
     }
 }
