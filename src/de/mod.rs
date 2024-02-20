@@ -4,12 +4,22 @@ pub use impls::*;
 use std::any::{Any, TypeId};
 use crate::{DeError, ObjectRef};
 
-pub trait Decodable: std::fmt::Debug {
-    fn class() -> Option<&'static str> where Self: Sized;
-    fn decode(object: ObjectRef, types: &[ObjectAny]) -> Result<Self, DeError> where Self:Sized;
+pub trait Decodable: std::fmt::Debug + Sized {
+    fn class() -> Option<&'static str>;
+    fn decode(object: ObjectRef, types: &[ObjectAny]) -> Result<Self, DeError>;
+    fn decode_as_any(object: ObjectRef, types: &[ObjectAny]) -> Result<Box<dyn std::any::Any>, DeError> where Self: 'static {
+        Ok(Box::new(Self::decode(object, types)?) as Box<dyn std::any::Any>)
+    }
+    fn as_object_any() -> ObjectAny where Self: 'static {
+        ObjectAny::new(
+            TypeId::of::<Self>(),
+            Self::class,
+            Self::decode_as_any
+        )
+    }
 }
 
-pub type ObjectClassFn = fn () -> &'static str;
+pub type ObjectClassFn = fn () -> Option<&'static str>;
 pub type ObjectDecodeFn = fn (obj: ObjectRef, types: &[ObjectAny]) -> Result<Box<dyn Any>, DeError>;
 pub type ObjectType = (TypeId, ObjectClassFn, ObjectDecodeFn);
 pub type ObjectTypes = Vec<ObjectType>;
@@ -20,57 +30,22 @@ impl ObjectAny {
         Self(t, c, d)
     }
     pub fn type_id(&self) -> TypeId {self.0}
-    pub fn class(&self) -> &'static str {self.1()}
+    pub fn class(&self) -> Option<&'static str> {self.1()}
     pub fn decode(&self, obj: ObjectRef, types: &[ObjectAny]) -> Result<Box<dyn Any>, DeError> {self.2(obj, types)}
-}
-
-#[macro_export]
-macro_rules! make_decodable {
-    ($vis:vis $name:ident) => {
-        $crate::paste::paste! {
-            #[doc(hidden)]
-            use $name as [< _$name _typ >];
-            #[doc(hidden)]
-            #[allow(unused)]
-            $vis mod [<$name:lower _helper>] {
-                use core::any::{Any, TypeId};
-                use $crate::de::Decodable;
-                use $crate::de::ObjectAny;
-                use super::[< _$name _typ >] as $name;
-
-                #[doc(hidden)]
-                pub fn [<_ $name:lower _class>]() -> &'static str {
-                    $name::class().unwrap()
-                }
-                #[doc(hidden)]
-                pub fn [<_ $name:lower _decode>](obj: $crate::ObjectRef, types: &[ObjectAny]) -> Result<Box<dyn Any>, $crate::DeError> {
-                    $name::decode(obj, types).map(|o| Box::new(o) as Box<dyn Any>)
-                }
-                #[doc(hidden)]
-                pub fn [<$name:lower _object_type>]() -> ObjectAny {
-                    ObjectAny::new(
-                        TypeId::of::<$name>(),
-                        [<_ $name:lower _class>],
-                        [<_ $name:lower _decode>]
-                    )
-                }
-            }
-        }
-    };
 }
 
 #[macro_export]
 macro_rules! make_types {
     ($($name:ident),*) => {
-        $crate::paste::paste! {{
+        {
             Vec::from([
-                $crate::de::nsarray_helper::nsarray_object_type(),
-                $crate::de::nsdictionary_helper::nsdictionary_object_type(),
+                $crate::de::NSArray::as_object_any(),
+                $crate::de::NSDictionary::as_object_any(),
                 $(
-                    [<$name:lower _helper>]::[<$name:lower _object_type>]()
+                    $name::as_object_any()
                 ),*
             ])
-        }}
+        }
     };
 }
 
@@ -93,7 +68,7 @@ pub fn decode_any_object(object_ref: ObjectRef, types: &[ObjectAny]) -> Result<B
     let class = object.class();
     let mut result = None;
     for typ in types {
-        if typ.class() == &class {
+        if typ.class().unwrap() == &class {
             result = Some(
                 typ.decode(object_ref.clone(), types)
             );

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::any::Any;
-use crate::{ArchiveValue, DeError, ObjectRef, make_decodable, get_object};
+use crate::{ArchiveValue, DeError, ObjectRef, get_object};
 use super::{Decodable, ObjectAny, decode_any_object};
 
 impl Decodable for String {
@@ -61,7 +61,6 @@ impl Decodable for f64 {
 pub struct NSArray {
     objects: Vec<Box<dyn Any>>, // NS.objects
 }
-make_decodable!(pub NSArray);
 
 impl Decodable for NSArray {
     fn class() -> Option<&'static str> {
@@ -95,7 +94,6 @@ impl Decodable for NSArray {
                         decoded_objs.push(Box::new(f) as Box<dyn Any>);
                 },
                 ArchiveValue::Object(_) => {
-                    // todo: should probably just store a reference
                     decoded_objs.push(
                         decode_any_object(obj, types)?
                     );
@@ -124,7 +122,6 @@ impl NSArray {
 pub struct NSDictionary {
     hashmap: HashMap<String, Box<dyn Any>>
 }
-make_decodable!(pub NSDictionary);
 
 impl Decodable for NSDictionary {
     fn class() -> Option<&'static str> where Self: Sized {
