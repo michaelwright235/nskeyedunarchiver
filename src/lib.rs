@@ -1,8 +1,10 @@
 mod error;
+pub mod de;
 
 use enum_as_inner::EnumAsInner;
 pub use error::*;
-use paste::paste;
+#[doc(hidden)]
+pub use paste;
 use plist::{Dictionary as PlistDictionary, Integer as PlistInteger, Value as PlistValue};
 use std::{
     collections::HashMap,
@@ -75,7 +77,7 @@ impl NSKeyedUnarchiver {
             return Err(IncorrectFormatError::WrongValueType(OBJECTS_KEY_NAME, "Array").into());
         };
 
-        let objects = Self::decode_objects(raw_objects);
+        let objects = Self::decode_objects(raw_objects)?;
         Ok(Self { objects, top })
     }
 
@@ -127,7 +129,7 @@ impl NSKeyedUnarchiver {
         }
     }
 
-    fn decode_objects(objects: Vec<PlistValue>) -> Vec<ObjectRef> {
+    fn decode_objects(objects: Vec<PlistValue>) -> Result<Vec<ObjectRef>, Error> {
         let mut decoded_objects = Vec::with_capacity(objects.len());
         for obj in objects {
             let decoded_obj = if let Some(s) = obj.as_string() {
@@ -142,7 +144,7 @@ impl NSKeyedUnarchiver {
                 ArchiveValue::F64(f)
             } else if let Some(dict) = obj.as_dictionary() {
                 if Self::is_container(&obj) {
-                    ArchiveValue::Object(Object::from_dict(obj.into_dictionary().unwrap()))
+                    ArchiveValue::Object(Object::from_dict(obj.into_dictionary().unwrap())?)
                 } else if dict.contains_key("$classes") {
                     if let Some(classes_arr) = obj
                         .into_dictionary()
@@ -187,20 +189,39 @@ impl NSKeyedUnarchiver {
                 obj.apply_object_tree(&decoded_objects)
             }
         }
-        decoded_objects
+        Ok(decoded_objects)
     }
 }
 
 macro_rules! get_key {
     ($self:ident, $key:ident, $typ:literal) => {
-        paste! {
+        paste::paste! {
             {
                 if !$self.contains_key($key) {
-                    return Err(Error::MissingObjectKey($self.class().to_string(), $key.to_string()))
+                    return Err(
+                        DeError::MissingObjectKey(
+                            format!(
+                                "Missing key '{0}' for object '{1}'",
+                                $key,
+                                $self.class()
+                            )
+                        )
+                    );
                 }
-                let obj = $self.fields.get($key).unwrap().[<as_$typ>]();
+                let raw_object = $self.fields.get($key).unwrap();
+                let obj = raw_object.[<as_$typ>]();
                 if obj.is_none() {
-                    return Err(Error::WrongObjectValueType($typ.to_string(), $key.to_string()))
+                    return Err(
+                        DeError::IncorrectObjectValueType(
+                            format!(
+                                "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
+                                $typ,
+                                $self.class(),
+                                raw_object.as_plain_type(),
+                                $key.to_string()
+                            )
+                        )
+                    );
                 }
                 obj.unwrap()
             }
@@ -223,6 +244,22 @@ enum ObjectValue {
     RawRefArray(Vec<u64>), // vector of uids
     RawRef(u64),           // uid
 }
+impl ObjectValue {
+    pub fn as_plain_type(&self) -> &'static str {
+        match self {
+            ObjectValue::String(_) => "string",
+            ObjectValue::Integer(_) => "integer",
+            ObjectValue::F64(_) => "f64",
+            ObjectValue::Boolean(_) => "boolean",
+            ObjectValue::Data(_) => "data",
+            ObjectValue::RefArray(_) => "array of objects references",
+            ObjectValue::Ref(_) => "object reference",
+            ObjectValue::NullRef => "null reference",
+            ObjectValue::RawRefArray(_) => todo!(),
+            ObjectValue::RawRef(_) => todo!(),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct Object {
@@ -232,60 +269,74 @@ pub struct Object {
 }
 
 impl Object {
-    pub fn decode_bool(&self, key: &str) -> Result<bool, Error> {
+    pub fn decode_bool(&self, key: &str) -> Result<bool, DeError> {
         Ok(*get_key!(self, key, "boolean"))
     }
 
-    pub fn decode_data(&self, key: &str) -> Result<&[u8], Error> {
-        // TODO: check if it can be referenced with uid
+    pub fn decode_data(&self, key: &str) -> Result<&[u8], DeError> {
         Ok(get_key!(self, key, "data"))
     }
 
-    pub fn decode_f64(&self, key: &str) -> Result<f64, Error> {
+    pub fn decode_f64(&self, key: &str) -> Result<f64, DeError> {
         Ok(*get_key!(self, key, "f64"))
     }
 
-    pub fn decode_i64(&self, key: &str) -> Result<i64, Error> {
+    pub fn decode_i64(&self, key: &str) -> Result<i64, DeError> {
         match get_key!(self, key, "integer").as_signed() {
             Some(i) => Ok(i),
-            None => Err(Error::WrongObjectValueType(
-                "signed integer".to_string(),
-                "unsigned integer".to_string(),
+            None => Err(DeError::IncorrectObjectValueType(
+                format!(
+                    "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
+                    "unsigned integer",
+                    self.class(),
+                    "signed integer",
+                    key
+                )
             )),
         }
     }
 
-    pub fn decode_u64(&self, key: &str) -> Result<u64, Error> {
+    pub fn decode_u64(&self, key: &str) -> Result<u64, DeError> {
         match get_key!(self, key, "integer").as_unsigned() {
             Some(u) => Ok(u),
-            None => Err(Error::WrongObjectValueType(
-                "unsigned integer".to_string(),
-                "signed integer".to_string(),
+            None => Err(DeError::IncorrectObjectValueType(
+                format!(
+                    "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
+                    "signed integer",
+                    self.class(),
+                    "unsigned integer",
+                    key
+                )
             )),
         }
     }
 
-    pub fn decode_string(&self, key: &str) -> Result<String, Error> {
+    pub fn decode_string(&self, key: &str) -> Result<String, DeError> {
         // As far as I can tell all strings inside of objects are
         // linked with UIDs
         let obj = get_key!(self, key, "ref");
         let Some(string) = obj.as_string() else {
-            return Err(Error::WrongObjectValueType(
-                "string".to_string(),
-                "".to_string(),
+            return Err(DeError::IncorrectObjectValueType(
+                format!(
+                    "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
+                    "object",
+                    self.class(),
+                    "string",
+                    key
+                )
             ));
         };
 
         Ok(string.to_string())
     }
 
-    pub fn decode_object(&self, key: &str) -> Result<ObjectRef, Error> {
+    pub fn decode_object(&self, key: &str) -> Result<ObjectRef, DeError> {
         // -> Result<&Object, Error>
         let obj = get_key!(self, key, "ref");
         Ok(obj.clone())
     }
 
-    pub fn decode_array(&self, key: &str) -> Result<Vec<ObjectRef>, Error> {
+    pub fn decode_array(&self, key: &str) -> Result<Vec<ObjectRef>, DeError> {
         let array = get_key!(self, key, "ref_array");
         let mut refs = Vec::with_capacity(array.len());
         for item in array {
@@ -294,11 +345,14 @@ impl Object {
         Ok(refs)
     }
 
-    pub fn is_null_ref(&self, key: &str) -> Result<bool, Error> {
+    pub fn is_null_ref(&self, key: &str) -> Result<bool, DeError> {
         if !self.contains_key(key) {
-            return Err(Error::MissingObjectKey(
-                self.class().to_string(),
-                key.to_string(),
+            return Err(DeError::MissingObjectKey(
+                format!(
+                    "Missing key '{0}' for object '{1}'",
+                    self.class(),
+                    key
+                )
             ));
         }
         Ok(self.fields.get(key).unwrap().is_null_ref())
@@ -339,7 +393,7 @@ impl Object {
         }
     }
 
-    pub(crate) fn from_dict(mut dict: PlistDictionary) -> Self {
+    pub(crate) fn from_dict(mut dict: PlistDictionary) -> Result<Self, Error> {
         let classes_uid = dict.remove("$class").unwrap().into_uid().unwrap().get(); // unwrapping is safe, we previously check it with is_container()
         let mut fields = HashMap::with_capacity(dict.len());
         for (key, obj) in dict {
@@ -361,7 +415,7 @@ impl Object {
                 let mut arr_of_uids = Vec::with_capacity(arr.len());
                 for val in obj.into_array().unwrap() {
                     if val.as_uid().is_none() {
-                        panic!("Array should countain only uids")
+                        return Err(Error::DecodingObjectError("Array should countain only object references".to_string()));
                     } else {
                         arr_of_uids.push(val.into_uid().unwrap().get());
                     }
@@ -370,20 +424,16 @@ impl Object {
             } else if obj.as_uid().is_some() {
                 ObjectValue::RawRef(obj.into_uid().unwrap().get())
             } else {
-                panic!("Unexpected object value type: {:?}", obj)
+                return Err(Error::DecodingObjectError(format!("Enexpected object value type: {:?}", obj)));
             };
             fields.insert(key, decoded_obj);
         }
-        Self {
+        Ok(Self {
             classes: None,
             classes_uid,
             fields,
-        }
+        })
     }
-}
-
-pub trait Decodable {
-    fn decode(object: Object) -> Self;
 }
 
 #[cfg(test)]

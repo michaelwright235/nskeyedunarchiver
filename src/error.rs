@@ -13,6 +13,8 @@ pub enum Error {
     MissingObjectKey(String, String),
     #[error("Wrong object value type. Expected '{0}' for key '{1}'")]
     WrongObjectValueType(String, String),
+    #[error("{0}")]
+    DecodingObjectError(String)
 }
 
 impl From<IncorrectFormatError> for Error {
@@ -31,4 +33,28 @@ pub(crate) enum IncorrectFormatError {
     UnsupportedArchiver,
     #[error("Unsupported archiver version. Only '{ARCHIVER_VERSION}' is supported")]
     UnsupportedArchiverVersion,
+}
+
+#[derive(Error, Debug)]
+pub enum DeError {
+    #[error("{0}")]
+    Message(String),
+    #[error("Expected string")]
+    ExpectedString,
+    #[error("Expected integer")]
+    ExpectedInteger,
+    #[error("Expected f64")]
+    ExpectedF64,
+    #[error("Expected boolean")]
+    ExpectedBoolean,
+    #[error("Expected data")]
+    ExpectedData,
+    #[error("Expected object")]
+    ExpectedObject,
+    #[error("Expected null reference")]
+    ExpectedNullRef,
+    #[error("{0}")] // "Missing key '{0}' for object '{1}'"
+    MissingObjectKey(String),
+    #[error("{0}")] // Incorrect value type of {0} for object {1}. Expected '{2}' for key '{3}'
+    IncorrectObjectValueType(String),
 }
