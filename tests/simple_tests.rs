@@ -39,6 +39,14 @@ fn simple_array() {
 
 #[test]
 fn simple_dict() {
+    // -- NSDictionary
+    //    -- First key  -> String: "First value"
+    //    -- Second key -> String: "Second value"
+    //    -- Array key  -> NSArray:
+    //                      -- Integer: 1
+    //                      -- Integer: 2
+    //                      -- Integer: 3
+
     let root = open_file("simpleDict.plist");
     let mut decoded_data = NSDictionary::decode(root, &object_types!()).unwrap();
 
@@ -56,20 +64,18 @@ fn simple_dict() {
         .unwrap();
     assert_eq!(value2.as_str(), "Second value");
 
-    let mut value3: Box<NSArray> = decoded_data
+    let value3: Vec<Box<Integer>> = (decoded_data
         .remove("Array key")
         .unwrap()
         .downcast()
-        .unwrap();
+        .unwrap() as Box<NSArray>)
+        .into_iter()
+        .map(|v| v.downcast().unwrap() as Box<Integer>)
+        .collect();
 
-    let value3_child1: Box<Integer> = value3.remove(0).downcast().unwrap();
-    assert_eq!(value3_child1.as_unsigned().unwrap(), 1);
-
-    let value3_child2: Box<Integer> = value3.remove(0).downcast().unwrap();
-    assert_eq!(value3_child2.as_unsigned().unwrap(), 2);
-
-    let value3_child3: Box<Integer> = value3.remove(0).downcast().unwrap();
-    assert_eq!(value3_child3.as_unsigned().unwrap(), 3);
+    assert_eq!(value3[0].as_unsigned().unwrap(), 1);
+    assert_eq!(value3[1].as_unsigned().unwrap(), 2);
+    assert_eq!(value3[2].as_unsigned().unwrap(), 3);
 }
 
 #[test]
@@ -92,22 +98,4 @@ fn ns_data() {
     let decoded_data = NSData::decode(root, &object_types!(NSData)).unwrap();
     let s = String::from_utf8(decoded_data.0).unwrap();
     assert_eq!(s, "Some data!");
-}
-
-#[derive(Debug)]
-struct NSAffineTransform<'a> {
-    data: Vec<u8>,
-    p: Option<&'a str>,
-}
-
-impl Decodable for NSAffineTransform<'_> {
-    fn is_type_of(classes: &[String]) -> bool {
-        classes[0] == "NSAffineTransform"
-    }
-
-    fn decode(object: ObjectRef, _types: &[ObjectType]) -> Result<Self, DeError> {
-        let obj = as_object!(object);
-        let data = obj.decode_data("NSTransformStruct")?.to_vec();
-        Ok(Self { data, p: None })
-    }
 }
