@@ -5,8 +5,10 @@ edition = "2021"
 
 [dependencies]
 enum-as-inner = "0.6.0"
-log = "0.4.20"
 paste = "1.0.14"
 plist = "1.6.0"
-simplelog = "0.12.1"
 thiserror = "1.0.57"
+
+[dev-dependencies]
+simplelog = "0.12.1"
+log = "0.4.20"
