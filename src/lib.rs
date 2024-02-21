@@ -193,7 +193,7 @@ impl NSKeyedUnarchiver {
         for ptr in &decoded_objects_raw {
             let a = unsafe { &mut **ptr };
             if let Some(obj) = a.as_object_mut() {
-                obj.apply_object_tree(&decoded_objects)?
+                obj.apply_value_refs(&decoded_objects)?
             }
         }
         Ok(decoded_objects)
@@ -337,7 +337,7 @@ impl Object {
         &a.as_classes().as_ref().unwrap()[0]
     }
 
-    pub(crate) fn apply_object_tree(&mut self, tree: &[ValueRef]) -> Result<(), Error> {
+    pub(crate) fn apply_value_refs(&mut self, tree: &[ValueRef]) -> Result<(), Error> {
         self.classes = Some(tree[self.classes_uid as usize].clone());
         if !self.classes.as_ref().unwrap().is_classes() {
             return Err(Error::DecodingObjectError(
