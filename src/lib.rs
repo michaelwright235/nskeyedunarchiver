@@ -16,7 +16,7 @@ pub(crate) const OBJECTS_KEY_NAME: &str = "$objects";
 pub(crate) const VERSION_KEY_NAME: &str = "$version";
 pub(crate) const NULL_OBJECT_REFERENCE_NAME: &str = "$null";
 
-pub type ObjectRef = Rc<ArchiveValue>;
+pub type ValueRef = Rc<ArchiveValue>;
 // Possible values inside of $objects
 #[derive(Debug, EnumAsInner)]
 pub enum ArchiveValue {
@@ -29,7 +29,7 @@ pub enum ArchiveValue {
 }
 
 pub struct NSKeyedUnarchiver {
-    objects: Vec<ObjectRef>,
+    objects: Vec<ValueRef>,
     top: PlistDictionary,
 }
 
@@ -75,13 +75,17 @@ impl NSKeyedUnarchiver {
         Ok(Self { objects, top })
     }
 
-    pub fn top(&self) -> HashMap<String, ObjectRef> {
+    pub fn top(&self) -> HashMap<String, ValueRef> {
         let mut map = HashMap::with_capacity(self.top.len());
         for (key, value) in &self.top {
             let uid = value.as_uid().unwrap().get() as usize;
             map.insert(key.to_string(), self.objects[uid].clone());
         }
         map
+    }
+
+    pub fn objects(&self) -> &[ValueRef] {
+        &self.objects
     }
 
     fn get_header_key(dict: &mut PlistDictionary, key: &'static str) -> Result<PlistValue, Error> {
@@ -123,7 +127,7 @@ impl NSKeyedUnarchiver {
         }
     }
 
-    fn decode_objects(objects: Vec<PlistValue>) -> Result<Vec<ObjectRef>, Error> {
+    fn decode_objects(objects: Vec<PlistValue>) -> Result<Vec<ValueRef>, Error> {
         let mut decoded_objects = Vec::with_capacity(objects.len());
         for obj in objects {
             let decoded_obj = if let Some(s) = obj.as_string() {
@@ -226,8 +230,8 @@ enum ObjectValue {
     Real(f64),
     Boolean(bool),
     Data(Vec<u8>),
-    RefArray(Vec<ObjectRef>),
-    Ref(ObjectRef),
+    RefArray(Vec<ValueRef>),
+    Ref(ValueRef),
     NullRef,
 
     // Don't use them
@@ -253,7 +257,7 @@ impl ObjectValue {
 
 #[derive(Debug)]
 pub struct Object {
-    classes: Option<ObjectRef>,
+    classes: Option<ValueRef>,
     classes_uid: u64,
     fields: HashMap<String, ObjectValue>,
 }
@@ -292,13 +296,13 @@ impl Object {
         Ok(string.to_string())
     }
 
-    pub fn decode_object(&self, key: &str) -> Result<ObjectRef, DeError> {
+    pub fn decode_object(&self, key: &str) -> Result<ValueRef, DeError> {
         // -> Result<&Object, Error>
         let obj = get_key!(self, key, "ref");
         Ok(obj.clone())
     }
 
-    pub fn decode_array(&self, key: &str) -> Result<Vec<ObjectRef>, DeError> {
+    pub fn decode_array(&self, key: &str) -> Result<Vec<ValueRef>, DeError> {
         let array = get_key!(self, key, "ref_array");
         let mut refs = Vec::with_capacity(array.len());
         for item in array {
@@ -333,7 +337,7 @@ impl Object {
         a.as_classes().unwrap()[0].to_string()
     }
 
-    pub(crate) fn apply_object_tree(&mut self, tree: &[ObjectRef]) -> Result<(), Error> {
+    pub(crate) fn apply_object_tree(&mut self, tree: &[ValueRef]) -> Result<(), Error> {
         self.classes = Some(tree[self.classes_uid as usize].clone());
         if !self.classes.as_ref().unwrap().is_classes() {
             return Err(Error::DecodingObjectError(
@@ -401,25 +405,5 @@ impl Object {
             classes_uid,
             fields,
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::NSKeyedUnarchiver;
-    use simplelog::{Config, LevelFilter, SimpleLogger};
-
-    #[test]
-    fn test1() {
-        let _ = SimpleLogger::init(LevelFilter::Debug, Config::default());
-        let unarchiver = NSKeyedUnarchiver::from_file("./MainWindow.nib").unwrap();
-        println!("{:#?}", unarchiver.top());
-    }
-
-    #[test]
-    fn test2() {
-        let _ = SimpleLogger::init(LevelFilter::Debug, Config::default());
-        let unarchiver = NSKeyedUnarchiver::from_file("./NSAffineTransform2.plist").unwrap();
-        println!("{:#?}", unarchiver.top());
     }
 }

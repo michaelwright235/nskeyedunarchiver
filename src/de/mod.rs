@@ -1,20 +1,20 @@
 mod impls;
 pub use impls::*;
 
-use crate::{DeError, ObjectRef};
+use crate::{DeError, ValueRef};
 use std::any::{Any, TypeId};
 
 pub trait Decodable: Sized {
     fn is_type_of(classes: &[String]) -> bool;
-    fn decode(object: ObjectRef, types: &[ObjectType]) -> Result<Self, DeError>;
+    fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError>;
     fn decode_as_any(
-        object: ObjectRef,
+        value: ValueRef,
         types: &[ObjectType],
     ) -> Result<Box<dyn std::any::Any>, DeError>
     where
         Self: 'static,
     {
-        Ok(Box::new(Self::decode(object, types)?) as Box<dyn std::any::Any>)
+        Ok(Box::new(Self::decode(value, types)?) as Box<dyn std::any::Any>)
     }
     fn as_object_type() -> ObjectType
     where
@@ -25,7 +25,7 @@ pub trait Decodable: Sized {
 }
 
 type IsTypeOfFn = fn(classes: &[String]) -> bool;
-type DecodeAsAnyFn = fn(obj: ObjectRef, types: &[ObjectType]) -> Result<Box<dyn Any>, DeError>;
+type DecodeAsAnyFn = fn(obj: ValueRef, types: &[ObjectType]) -> Result<Box<dyn Any>, DeError>;
 
 pub struct ObjectType(TypeId, IsTypeOfFn, DecodeAsAnyFn);
 impl ObjectType {
@@ -38,7 +38,7 @@ impl ObjectType {
     pub fn is_type_of(&self, classes: &[String]) -> bool {
         self.1(classes)
     }
-    pub fn decode(&self, obj: ObjectRef, types: &[ObjectType]) -> Result<Box<dyn Any>, DeError> {
+    pub fn decode(&self, obj: ValueRef, types: &[ObjectType]) -> Result<Box<dyn Any>, DeError> {
         self.2(obj, types)
     }
 }
@@ -48,7 +48,9 @@ macro_rules! object_types {
     ($($name:ident),*) => {
         Vec::from([
             $crate::de::NSArray::as_object_type(),
+            $crate::de::NSSet::as_object_type(),
             $crate::de::NSDictionary::as_object_type(),
+            $crate::de::NSData::as_object_type(),
             $(
                 $name::as_object_type()
             ),*
@@ -59,25 +61,22 @@ macro_rules! object_types {
 #[macro_export]
 macro_rules! as_object {
     ($obj_ref:ident) => {{
-        let Some(obj) = $obj_ref.as_object() else {
-            return Err($crate::DeError::ExpectedObject);
-        };
-        obj
+        $obj_ref.as_object().ok_or($crate::DeError::ExpectedObject)
     }};
 }
 
-pub fn object_ref_to_any(
-    object_ref: ObjectRef,
+pub fn value_ref_to_any(
+    value_ref: ValueRef,
     types: &[ObjectType],
 ) -> Result<Box<dyn Any>, DeError> {
-    let Some(object) = object_ref.as_object() else {
+    let Some(object) = value_ref.as_object() else {
         return Err(DeError::ExpectedObject);
     };
     let classes = object.classes();
     let mut result = None;
     for typ in types {
         if typ.is_type_of(&classes) {
-            result = Some(typ.decode(object_ref.clone(), types));
+            result = Some(typ.decode(value_ref.clone(), types));
         }
     }
     match result {
@@ -88,3 +87,5 @@ pub fn object_ref_to_any(
         ))),
     }
 }
+
+// pub fn value_ref_to_t<T>

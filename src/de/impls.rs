@@ -1,5 +1,5 @@
-use super::{object_ref_to_any, Decodable, ObjectType};
-use crate::{as_object, ArchiveValue, DeError, Integer, ObjectRef};
+use super::{value_ref_to_any, Decodable, ObjectType};
+use crate::{as_object, ArchiveValue, DeError, Integer, ValueRef};
 use std::any::Any;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
@@ -8,8 +8,8 @@ impl Decodable for String {
     fn is_type_of(_classes: &[String]) -> bool {
         false
     }
-    fn decode(object: ObjectRef, _types: &[ObjectType]) -> Result<Self, DeError> {
-        let Some(s) = object.as_string() else {
+    fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
+        let Some(s) = value.as_string() else {
             return Err(DeError::ExpectedString);
         };
         Ok(s.to_string())
@@ -20,8 +20,8 @@ impl Decodable for f64 {
     fn is_type_of(_classes: &[String]) -> bool {
         false
     }
-    fn decode(object: ObjectRef, _types: &[ObjectType]) -> Result<Self, DeError> {
-        let Some(float) = object.as_real() else {
+    fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
+        let Some(float) = value.as_real() else {
             return Err(DeError::ExpectedReal);
         };
         Ok(*float)
@@ -33,8 +33,8 @@ impl Decodable for Integer {
         false
     }
 
-    fn decode(object: ObjectRef, _types: &[ObjectType]) -> Result<Self, DeError> {
-        let Some(int) = object.as_integer() else {
+    fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
+        let Some(int) = value.as_integer() else {
             return Err(DeError::ExpectedInteger);
         };
         Ok(*int)
@@ -59,7 +59,7 @@ macro_rules! class_wrapper {
             pub fn set_is_mutable(&mut self, v: bool) {
                 self.is_mutable = v;
             }
-            pub fn is_mutable(&mut self) -> bool {
+            pub fn is_mutable(&self) -> bool {
                 self.is_mutable
             }
             pub fn into_inner(self) -> $dataType {
@@ -94,8 +94,8 @@ impl Decodable for NSArray {
             || classes[0] == "NSSet"
             || classes[0] == "NSMutableSet"
     }
-    fn decode(object: ObjectRef, types: &[ObjectType]) -> Result<Self, DeError> {
-        let obj = as_object!(object);
+    fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError> {
+        let obj = as_object!(value)?;
         let is_mutable = obj.class() == "NSMutableArray";
         let Ok(inner_objs) = obj.decode_array("NS.objects") else {
             return Err(DeError::Message(
@@ -118,7 +118,7 @@ impl Decodable for NSArray {
                     decoded_objs.push(Box::new(f) as Box<dyn Any>);
                 }
                 ArchiveValue::Object(_) => {
-                    decoded_objs.push(object_ref_to_any(obj, types)?);
+                    decoded_objs.push(value_ref_to_any(obj, types)?);
                 }
                 ArchiveValue::NullRef => (),
                 ArchiveValue::Classes(_) => (),
@@ -138,11 +138,14 @@ impl NSArray {
         T: Decodable + 'static,
     {
         let data = self.data;
+        for value in &data {
+            if value.downcast_ref::<T>().is_none() {
+                return Err(DeError::Message("Unable to downcast objects".to_string()));
+            }
+        }
         let mut objects: Vec<Box<T>> = Vec::with_capacity(data.len());
         for obj in data {
-            let Ok(downcasted) = obj.downcast::<T>() else {
-                return Err(DeError::Message("Unable to downcast objects".to_string()));
-            };
+            let downcasted = obj.downcast::<T>().unwrap();
             objects.push(downcasted);
         }
         Ok(objects)
@@ -163,15 +166,14 @@ impl NSArray {
     where
         T: Decodable + 'static,
     {
-        let Ok(downcasted) = self.data.remove(index).downcast::<T>() else {
-            return Err(DeError::Message("Unable to downcast objects".to_string()));
-        };
+        let _ = self.get_as_object::<T>(index)?;
+        let downcasted = self.data.remove(index).downcast::<T>().unwrap();
         Ok(downcasted)
     }
 }
 
 pub struct NSSet {
-    data: NSArray,
+    data: Vec<Box<dyn Any>>,
     is_mutable: bool,
 }
 impl Decodable for NSSet {
@@ -179,16 +181,34 @@ impl Decodable for NSSet {
         classes[0] == "NSSet" || classes[0] == "NSMutableSet"
     }
 
-    fn decode(object: ObjectRef, types: &[ObjectType]) -> Result<Self, DeError> {
-        let obj = as_object!(object);
+    fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError> {
+        let obj = as_object!(value)?;
         let is_mutable = obj.class() == "NSMutableSet";
         Ok(Self {
-            data: NSArray::decode(object, types)?,
+            data: NSArray::decode(value, types)?.into_inner(),
             is_mutable,
         })
     }
 }
-class_wrapper!(NSSet, NSArray);
+class_wrapper!(NSSet, Vec<Box<dyn Any>>);
+
+impl From<NSArray> for NSSet {
+    fn from(value: NSArray) -> Self {
+        Self {
+            data: value.data,
+            is_mutable: value.is_mutable,
+        }
+    }
+}
+
+impl From<NSSet> for NSArray {
+    fn from(value: NSSet) -> Self {
+        Self {
+            data: value.data,
+            is_mutable: value.is_mutable,
+        }
+    }
+}
 
 pub struct NSDictionary {
     data: HashMap<String, Box<dyn Any>>,
@@ -200,8 +220,8 @@ impl Decodable for NSDictionary {
         classes[0] == "NSDictionary" || classes[0] == "NSMutableDictionary"
     }
 
-    fn decode(object: ObjectRef, types: &[ObjectType]) -> Result<Self, DeError> {
-        let obj = as_object!(object);
+    fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError> {
+        let obj = as_object!(value)?;
         let is_mutable = obj.class() == "NSMutableDictionary";
         let raw_keys = obj.decode_array("NS.keys")?;
         let mut keys = Vec::with_capacity(raw_keys.len());
@@ -213,7 +233,7 @@ impl Decodable for NSDictionary {
             };
             keys.push(name.to_string());
         }
-        let mut objects = NSArray::decode(object, types)?;
+        let mut objects = NSArray::decode(value, types)?;
 
         if keys.len() != objects.len() {
             return Err(DeError::Message(
@@ -256,12 +276,8 @@ impl NSDictionary {
     where
         T: Decodable + 'static,
     {
-        if self.data.get(key).is_none() {
-            return Err(DeError::MissingObjectKey("Missing hashmap key".to_string()));
-        };
-        let Ok(downcasted) = self.data.remove(key).unwrap().downcast::<T>() else {
-            return Err(DeError::Message("Unable to downcast objects".to_string()));
-        };
+        let _ = self.get_as_object::<T>(key)?;
+        let downcasted = self.data.remove(key).unwrap().downcast::<T>().unwrap();
         Ok(downcasted)
     }
 
@@ -290,8 +306,8 @@ impl Decodable for NSData {
         classes[0] == "NSData" || classes[0] == "NSMutableData"
     }
 
-    fn decode(object: ObjectRef, _types: &[ObjectType]) -> Result<Self, DeError> {
-        let obj = as_object!(object);
+    fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
+        let obj = as_object!(value)?;
         let is_mutable = obj.class() == "NSMutableData";
         let data = obj.decode_data("NS.data")?.to_vec();
         Ok(Self { data, is_mutable })
