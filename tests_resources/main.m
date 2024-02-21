@@ -58,12 +58,21 @@ void simpleDict(void) {
     archiveData(dict, @"simpleDict");
 }
 
+void circularReference(void) {
+    NSMutableArray *array = [NSMutableArray arrayWithObjects:
+    @"self reference here",
+    nil];
+    array[1] = array;
+    archiveData(array, @"circularReference");
+}
+
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
         plainString();
         nsData();
         simpleArray();
         simpleDict();
+        circularReference();
     }
     return 0;
 }

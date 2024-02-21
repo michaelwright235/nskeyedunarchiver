@@ -84,6 +84,7 @@ impl NSKeyedUnarchiver {
         map
     }
 
+    // TODO: maybe rename it and self.objects to "values" or "all_values"?
     pub fn objects(&self) -> &[ValueRef] {
         &self.objects
     }
