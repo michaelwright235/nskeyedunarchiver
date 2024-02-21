@@ -298,7 +298,6 @@ impl Object {
     }
 
     pub fn decode_object(&self, key: &str) -> Result<ValueRef, DeError> {
-        // -> Result<&Object, Error>
         let obj = get_key!(self, key, "ref");
         Ok(obj.clone())
     }
@@ -327,15 +326,15 @@ impl Object {
         self.fields.contains_key(key)
     }
 
-    pub fn classes(&self) -> Vec<String> {
+    pub fn classes(&self) -> &[String] {
         let a = self.classes.as_ref().unwrap();
         let b = a.as_classes().unwrap();
-        b.to_vec()
+        b
     }
 
-    pub fn class(&self) -> String {
+    pub fn class(&self) -> &String {
         let a = self.classes.as_ref().unwrap();
-        a.as_classes().unwrap()[0].to_string()
+        &a.as_classes().as_ref().unwrap()[0]
     }
 
     pub(crate) fn apply_object_tree(&mut self, tree: &[ValueRef]) -> Result<(), Error> {
