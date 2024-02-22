@@ -8,7 +8,7 @@ const PLIST_PATH: &str = "./tests_resources/plists/";
 fn open_file(name: &str) -> (ValueRef, Vec<Weak<ArchiveValue>>) {
     let unarchiver = NSKeyedUnarchiver::from_file(format!("{PLIST_PATH}{name}")).unwrap();
     let weak_refs: Vec<Weak<ArchiveValue>> = unarchiver
-        .objects()
+        .values()
         .iter()
         .map(|v| Rc::downgrade(v))
         .collect();
@@ -27,7 +27,7 @@ fn check_rc_strong_count(weak_refs: &[Weak<ArchiveValue>]) {
 
 #[test]
 fn plain_string() {
-    // -- String: "Some string!"=
+    // -- String: "Some string!"
     let (root, weak_refs) = open_file("plainString.plist");
     let decoded_string = String::decode(root, &object_types!()).unwrap();
     check_rc_strong_count(&weak_refs);
