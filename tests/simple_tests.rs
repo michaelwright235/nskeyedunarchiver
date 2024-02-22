@@ -106,6 +106,9 @@ fn ns_data() {
 
 #[test]
 fn circular_reference() {
+    // Currenty weak references are not supported, so objects with circular references stay in memory.
+    // Therefore this test panics
+
     // -- NSMutableArray   <-|
     //    -- NSMutableArray -^
     let (root, weak_refs) = open_file("circularReference.plist");
