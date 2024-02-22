@@ -6,7 +6,7 @@ use plist::{Dictionary as PlistDictionary, Value as PlistValue};
 macro_rules! get_key {
     ($self:ident, $key:ident, $typ:literal) => {{
         if !$self.contains_key($key) {
-            return Err(DeError::MissingObjectKey(format!(
+            return Err(DeError::Message(format!(
                 "Missing key '{0}' for object '{1}'",
                 $key,
                 $self.class()
@@ -21,7 +21,7 @@ macro_rules! get_key {
             };
         }
         if obj.is_none() {
-            return Err(DeError::IncorrectObjectValueType(format!(
+            return Err(DeError::Message(format!(
                 "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
                 $typ,
                 $self.class(),
@@ -94,7 +94,7 @@ impl Object {
         // linked with UIDs
         let obj = get_key!(self, key, "ref");
         let Some(string) = obj.as_string() else {
-            return Err(DeError::IncorrectObjectValueType(format!(
+            return Err(DeError::Message(format!(
                 "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
                 "object",
                 self.class(),
@@ -118,7 +118,7 @@ impl Object {
 
     pub fn is_null_ref(&self, key: &str) -> Result<bool, DeError> {
         if !self.contains_key(key) {
-            return Err(DeError::MissingObjectKey(format!(
+            return Err(DeError::Message(format!(
                 "Missing key '{0}' for object '{1}'",
                 self.class(),
                 key
@@ -151,8 +151,8 @@ impl Object {
     pub(crate) fn apply_value_refs(&mut self, tree: &[ValueRef]) -> Result<(), Error> {
         self.classes = Some(tree[self.classes_uid as usize].clone());
         if !self.classes.as_ref().unwrap().is_classes() {
-            return Err(Error::DecodingObjectError(
-                "Incorrent Classes structure".to_string(),
+            return Err(Error::IncorrectFormat(
+                format!("Incorrent Classes structure (uid: {})", self.classes_uid)
             ));
         }
 
@@ -161,7 +161,7 @@ impl Object {
                 if let Some(obj_ref) = tree.get(*r as usize) {
                     *value = ObjectValue::Ref(obj_ref.clone());
                 } else {
-                    return Err(Error::DecodingObjectError(
+                    return Err(Error::IncorrectFormat(
                         format!("Incorrent object uid: {r}"),
                     ))
                 }
@@ -172,7 +172,7 @@ impl Object {
                     if let Some(obj_ref) = tree.get(*item as usize) {
                         ref_arr.push(obj_ref.clone())
                     } else {
-                        return Err(Error::DecodingObjectError(
+                        return Err(Error::IncorrectFormat(
                             format!("Incorrent object uid: {item}"),
                         ))
                     }
@@ -206,8 +206,8 @@ impl Object {
                 let mut arr_of_uids = Vec::with_capacity(arr.len());
                 for val in obj.into_array().unwrap() {
                     if val.as_uid().is_none() {
-                        return Err(Error::DecodingObjectError(
-                            "Array should countain only object references".to_string(),
+                        return Err(Error::IncorrectFormat(
+                            format!("Array (uid: {classes_uid}) should countain only object references"),
                         ));
                     } else {
                         arr_of_uids.push(val.into_uid().unwrap().get());
@@ -217,8 +217,8 @@ impl Object {
             } else if obj.as_uid().is_some() {
                 ObjectValue::RawRef(obj.into_uid().unwrap().get())
             } else {
-                return Err(Error::DecodingObjectError(format!(
-                    "Enexpected object value type: {:?}",
+                return Err(Error::IncorrectFormat(format!(
+                    "Enexpected object (uid: {classes_uid}) value type: {:?}",
                     obj
                 )));
             };

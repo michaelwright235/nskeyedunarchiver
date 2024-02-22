@@ -134,7 +134,7 @@ impl NSArray {
         let data = self.data;
         for value in &data {
             if value.downcast_ref::<T>().is_none() {
-                return Err(DeError::Message("Unable to downcast objects".to_string()));
+                return Err(DeError::Message("NSArray: Unable to downcast objects".to_string()));
             }
         }
         let mut objects: Vec<Box<T>> = Vec::with_capacity(data.len());
@@ -149,10 +149,10 @@ impl NSArray {
         T: Decodable + 'static,
     {
         if self.data.get(index).is_none() {
-            return Err(DeError::MissingObjectKey("Missing array key".to_string()));
+            return Err(DeError::Message("NSArray: Missing array key".to_string()));
         };
         let Some(downcasted) = self.data.get(index).unwrap().downcast_ref::<T>() else {
-            return Err(DeError::Message("Unable to downcast objects".to_string()));
+            return Err(DeError::Message("NSArray: Unable to downcast objects".to_string()));
         };
         Ok(downcasted)
     }
@@ -254,7 +254,7 @@ impl NSDictionary {
         let data = self.data;
         for (_, value) in &data {
             if value.downcast_ref::<T>().is_none() {
-                return Err(DeError::Message("Unable to downcast objects".to_string()));
+                return Err(DeError::Message("NSDictionary: Unable to downcast objects".to_string()));
             }
         }
 
@@ -280,10 +280,10 @@ impl NSDictionary {
         T: Decodable + 'static,
     {
         if self.data.get(key).is_none() {
-            return Err(DeError::MissingObjectKey("Missing hashmap key".to_string()));
+            return Err(DeError::Message("NSDictionary: Missing hashmap key".to_string()));
         };
         let Some(downcasted) = self.data.get(key).unwrap().downcast_ref::<T>() else {
-            return Err(DeError::Message("Unable to downcast objects".to_string()));
+            return Err(DeError::Message("NSDictionary: Unable to downcast objects".to_string()));
         };
         Ok(downcasted)
     }

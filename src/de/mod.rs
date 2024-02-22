@@ -59,6 +59,17 @@ macro_rules! object_types {
 }
 
 #[macro_export]
+macro_rules! object_types_empty {
+    ($($name:ident),*) => {
+        Vec::from([
+            $(
+                $name::as_object_type()
+            ),*
+        ])
+    };
+}
+
+#[macro_export]
 macro_rules! as_object {
     ($obj_ref:ident) => {{
         $obj_ref.as_object().ok_or($crate::DeError::ExpectedObject)
