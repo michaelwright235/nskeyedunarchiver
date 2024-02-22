@@ -115,7 +115,7 @@ impl Decodable for NSArray {
                 let f = f64::decode(obj.clone(), &[])?;
                 decoded_objs.push(Box::new(f) as Box<dyn Any>);
             } else if let Some(_) = obj.as_ref().as_object() {
-                decoded_objs.push(value_ref_to_any(obj, types)?);
+                decoded_objs.push(value_ref_to_any(obj.clone(), types)?);
             }
         }
 

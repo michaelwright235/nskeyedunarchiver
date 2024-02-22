@@ -81,15 +81,15 @@ impl Object {
         Ok(get_key!(self, key, "data"))
     }
 
-    pub fn decode_real(&self, key: &str) -> Result<f64, DeError> {
-        Ok(*get_key!(self, key, "real"))
+    pub fn decode_real(&self, key: &str) -> Result<&f64, DeError> {
+        Ok(get_key!(self, key, "real"))
     }
 
-    pub fn decode_integer(&self, key: &str) -> Result<Integer, DeError> {
-        Ok(*get_key!(self, key, "integer"))
+    pub fn decode_integer(&self, key: &str) -> Result<&Integer, DeError> {
+        Ok(get_key!(self, key, "integer"))
     }
 
-    pub fn decode_string(&self, key: &str) -> Result<String, DeError> {
+    pub fn decode_string(&self, key: &str) -> Result<&str, DeError> {
         // As far as I can tell all strings inside of objects are
         // linked with UIDs
         let obj = get_key!(self, key, "ref");
@@ -103,21 +103,17 @@ impl Object {
             )));
         };
 
-        Ok(string.to_string())
+        Ok(string)
     }
 
-    pub fn decode_object(&self, key: &str) -> Result<ValueRef, DeError> {
+    pub fn decode_object(&self, key: &str) -> Result<&ValueRef, DeError> {
         let obj = get_key!(self, key, "ref");
-        Ok(obj.clone())
+        Ok(obj)
     }
 
-    pub fn decode_array(&self, key: &str) -> Result<Vec<ValueRef>, DeError> {
+    pub fn decode_array(&self, key: &str) -> Result<&[ValueRef], DeError> {
         let array = get_key!(self, key, "ref_array");
-        let mut refs = Vec::with_capacity(array.len());
-        for item in array {
-            refs.push(item.clone());
-        }
-        Ok(refs)
+        Ok(array)
     }
 
     pub fn is_null_ref(&self, key: &str) -> Result<bool, DeError> {
@@ -147,7 +143,7 @@ impl Object {
         b
     }
 
-    pub fn class(&self) -> &String {
+    pub fn class(&self) -> &str {
         let a = self.classes.as_ref().unwrap();
         &a.as_classes().as_ref().unwrap()[0]
     }
