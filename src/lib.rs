@@ -3,7 +3,7 @@ mod error;
 mod object;
 
 pub use error::*;
-use object::*;
+pub use object::*;
 pub use plist::Integer;
 use plist::{Dictionary as PlistDictionary, Value as PlistValue};
 use std::{collections::HashMap, rc::Rc};
