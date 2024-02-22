@@ -162,12 +162,24 @@ impl Object {
 
         for value in self.fields.values_mut() {
             if let ObjectValue::RawRef(r) = value {
-                *value = ObjectValue::Ref(tree[*r as usize].clone());
+                if let Some(obj_ref) = tree.get(*r as usize) {
+                    *value = ObjectValue::Ref(obj_ref.clone());
+                } else {
+                    return Err(Error::DecodingObjectError(
+                        format!("Incorrent object uid: {r}"),
+                    ))
+                }
             }
             if let ObjectValue::RawRefArray(arr) = value {
                 let mut ref_arr = Vec::with_capacity(arr.len());
                 for item in arr {
-                    ref_arr.push(tree[*item as usize].clone())
+                    if let Some(obj_ref) = tree.get(*item as usize) {
+                        ref_arr.push(obj_ref.clone())
+                    } else {
+                        return Err(Error::DecodingObjectError(
+                            format!("Incorrent object uid: {item}"),
+                        ))
+                    }
                 }
                 *value = ObjectValue::RefArray(ref_arr);
             }
