@@ -62,7 +62,7 @@ void circularReference(void) {
     NSMutableArray *array = [NSMutableArray arrayWithObjects:
     @"self reference here",
     nil];
-    array[1] = array;
+    array[0] = array;
     archiveData(array, @"circularReference");
 }
 
