@@ -17,15 +17,85 @@ pub(crate) const VERSION_KEY_NAME: &str = "$version";
 pub(crate) const NULL_OBJECT_REFERENCE_NAME: &str = "$null";
 
 pub type ValueRef = Rc<ArchiveValue>;
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct UniqueId(usize);
+impl UniqueId {
+    pub fn new(id: usize) -> Self {
+        Self(id)
+    }
+    pub fn get(&self) -> usize {
+        self.0
+    }
+}
+
 // Possible values inside of $objects
-#[derive(Debug, EnumAsInner)]
-pub enum ArchiveValue {
+#[derive(Debug)]
+pub(crate) enum ArchiveValueVariant {
     String(String),
     Integer(Integer),
     Real(f64),
     NullRef,
     Classes(Vec<String>),
     Object(Object),
+}
+
+macro_rules! as_something {
+    ($self:ident, $enum_vname:literal, $typ:ty) => {
+        paste::paste! {
+            pub fn [<as_ $enum_vname:lower>](&self) -> Option<&$typ> {
+                if let ArchiveValueVariant::[<$enum_vname>](v) = &self.value {
+                    Some(v)
+                } else {
+                    None
+                }
+            }
+
+            pub fn [<is_ $enum_vname:lower>](&self) -> bool {
+                if let ArchiveValueVariant::[<$enum_vname>](_) = &self.value {
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+    };
+}
+
+#[derive(Debug)]
+pub struct ArchiveValue {
+    value: ArchiveValueVariant,
+    unique_id: UniqueId,
+}
+impl ArchiveValue {
+    pub(crate) fn new(value: ArchiveValueVariant, unique_id: UniqueId) -> Self {
+        Self { value, unique_id }
+    }
+    as_something!(self, "String", String);
+    as_something!(self, "Integer", Integer);
+    as_something!(self, "Real", f64);
+    as_something!(self, "Object", Object);
+    as_something!(self, "Classes", Vec<String>);
+
+    pub(crate) fn as_object_mut(&mut self) -> Option<&mut Object> {
+        if let ArchiveValueVariant::Object(v) = &mut self.value {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn is_null_ref(&self) -> bool {
+        if let ArchiveValueVariant::NullRef = &self.value {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn unique_id(&self) -> &UniqueId {
+        &self.unique_id
+    }
 }
 
 pub struct NSKeyedUnarchiver {
@@ -84,8 +154,7 @@ impl NSKeyedUnarchiver {
         map
     }
 
-    // TODO: maybe rename it and self.objects to "values" or "all_values"?
-    pub fn objects(&self) -> &[ValueRef] {
+    pub fn values(&self) -> &[ValueRef] {
         &self.objects
     }
 
@@ -130,20 +199,29 @@ impl NSKeyedUnarchiver {
 
     fn decode_objects(objects: Vec<PlistValue>) -> Result<Vec<ValueRef>, Error> {
         let mut decoded_objects = Vec::with_capacity(objects.len());
-        for obj in objects {
+
+        for (index, obj) in objects.into_iter().enumerate() {
             let decoded_obj = if let Some(s) = obj.as_string() {
                 if s == NULL_OBJECT_REFERENCE_NAME {
-                    ArchiveValue::NullRef
+                    ArchiveValue::new(ArchiveValueVariant::NullRef, UniqueId::new(index))
                 } else {
-                    ArchiveValue::String(obj.into_string().unwrap())
+                    ArchiveValue::new(
+                        ArchiveValueVariant::String(obj.into_string().unwrap()),
+                        UniqueId::new(index),
+                    )
                 }
             } else if let PlistValue::Integer(i) = obj {
-                ArchiveValue::Integer(i)
+                ArchiveValue::new(ArchiveValueVariant::Integer(i), UniqueId::new(index))
             } else if let Some(f) = obj.as_real() {
-                ArchiveValue::Real(f)
+                ArchiveValue::new(ArchiveValueVariant::Real(f), UniqueId::new(index))
             } else if let Some(dict) = obj.as_dictionary() {
                 if Self::is_container(&obj) {
-                    ArchiveValue::Object(Object::from_dict(obj.into_dictionary().unwrap())?)
+                    ArchiveValue::new(
+                        ArchiveValueVariant::Object(Object::from_dict(
+                            obj.into_dictionary().unwrap(),
+                        )?),
+                        UniqueId::new(index),
+                    )
                 } else if dict.contains_key("$classes") {
                     if let Some(classes_arr) = obj
                         .into_dictionary()
@@ -162,7 +240,10 @@ impl NSKeyedUnarchiver {
                                 ));
                             }
                         }
-                        ArchiveValue::Classes(classes)
+                        ArchiveValue::new(
+                            ArchiveValueVariant::Classes(classes),
+                            UniqueId::new(index),
+                        )
                     } else {
                         return Err(Error::DecodingObjectError(
                             "Incorrect Classes object".to_string(),
@@ -235,7 +316,7 @@ enum ObjectValue {
     Ref(ValueRef),
     NullRef,
 
-    // Don't use them
+    // Only used when creataing an object
     RawRefArray(Vec<u64>), // vector of uids
     RawRef(u64),           // uid
 }

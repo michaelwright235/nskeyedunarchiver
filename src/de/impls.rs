@@ -1,5 +1,5 @@
 use super::{value_ref_to_any, Decodable, ObjectType};
-use crate::{as_object, ArchiveValue, DeError, Integer, ValueRef};
+use crate::{as_object, DeError, Integer, ValueRef};
 use std::any::Any;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
@@ -105,23 +105,17 @@ impl Decodable for NSArray {
 
         let mut decoded_objs = Vec::with_capacity(inner_objs.len());
         for obj in inner_objs {
-            match obj.as_ref() {
-                ArchiveValue::String(_) => {
-                    let s = String::decode(obj.clone(), &[])?;
-                    decoded_objs.push(Box::new(s) as Box<dyn Any>);
-                }
-                ArchiveValue::Integer(n) => {
-                    decoded_objs.push(Box::new(*n) as Box<dyn Any>);
-                }
-                ArchiveValue::Real(_) => {
-                    let f = f64::decode(obj.clone(), &[])?;
-                    decoded_objs.push(Box::new(f) as Box<dyn Any>);
-                }
-                ArchiveValue::Object(_) => {
-                    decoded_objs.push(value_ref_to_any(obj, types)?);
-                }
-                ArchiveValue::NullRef => (),
-                ArchiveValue::Classes(_) => (),
+            if let Some(_) = obj.as_ref().as_string() {
+                let s = String::decode(obj.clone(), &[])?;
+                decoded_objs.push(Box::new(s) as Box<dyn Any>);
+            } else if let Some(_) = obj.as_ref().as_integer() {
+                let i = Integer::decode(obj.clone(), &[])?;
+                decoded_objs.push(Box::new(i) as Box<dyn Any>);
+            } else if let Some(_) = obj.as_ref().as_real() {
+                let f = f64::decode(obj.clone(), &[])?;
+                decoded_objs.push(Box::new(f) as Box<dyn Any>);
+            } else if let Some(_) = obj.as_ref().as_object() {
+                decoded_objs.push(value_ref_to_any(obj, types)?);
             }
         }
 
