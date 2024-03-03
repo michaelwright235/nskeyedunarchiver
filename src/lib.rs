@@ -17,8 +17,13 @@ pub(crate) const OBJECTS_KEY_NAME: &str = "$objects";
 pub(crate) const VERSION_KEY_NAME: &str = "$version";
 pub(crate) const NULL_OBJECT_REFERENCE_NAME: &str = "$null";
 
+/// An [Rc] smart pointer to an [ArchiveValue]
 pub type ValueRef = Rc<ArchiveValue>;
 
+/// A unique id of an archive value.
+///
+/// When decoding complex structures this it may help with indentifying repeatable
+/// values.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct UniqueId(usize);
 impl UniqueId {
@@ -30,7 +35,7 @@ impl UniqueId {
     }
 }
 
-// Possible values inside of $objects
+/// Possible values inside of $objects
 #[derive(Debug)]
 pub(crate) enum ArchiveValueVariant {
     String(String),
@@ -41,28 +46,10 @@ pub(crate) enum ArchiveValueVariant {
     Object(Object),
 }
 
-macro_rules! as_something {
-    ($self:ident, $enum_vname:literal, $typ:ty) => {
-        paste::paste! {
-            pub fn [<as_ $enum_vname:lower>](&self) -> Option<&$typ> {
-                if let ArchiveValueVariant::[<$enum_vname>](v) = &self.value {
-                    Some(v)
-                } else {
-                    None
-                }
-            }
-
-            pub fn [<is_ $enum_vname:lower>](&self) -> bool {
-                if let ArchiveValueVariant::[<$enum_vname>](_) = &self.value {
-                    true
-                } else {
-                    false
-                }
-            }
-        }
-    };
-}
-
+/// Represents a single value contained inside of an archive.
+///
+/// The possible values are: [String], [Integer], [f64],
+/// `NullRef` (a `$null` reference ), `Classes` (an array of class strings), [Object].
 #[derive(Debug)]
 pub struct ArchiveValue {
     value: ArchiveValueVariant,
@@ -72,11 +59,69 @@ impl ArchiveValue {
     pub(crate) fn new(value: ArchiveValueVariant, unique_id: UniqueId) -> Self {
         Self { value, unique_id }
     }
-    as_something!(self, "String", String);
-    as_something!(self, "Integer", Integer);
-    as_something!(self, "Real", f64);
-    as_something!(self, "Object", Object);
-    as_something!(self, "Classes", Vec<String>);
+
+    /// Returns [Some] with a reference to a contained [String] if a value represents it or [None] if it doesn't.
+    pub fn as_string(&self) -> Option<&String> {
+        if let ArchiveValueVariant::String(v) = &self.value {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    /// Checks if a contained value is a [String].
+    pub fn is_string(&self) -> bool {
+        if let ArchiveValueVariant::String(_) = &self.value {
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Returns [Some] with a reference to a contained [Integer] if a value represents it or [None] if it doesn't.
+    pub fn as_integer(&self) -> Option<&Integer> {
+        if let ArchiveValueVariant::Integer(v) = &self.value {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    /// Checks if a contained value is an [Integer].
+    pub fn is_integer(&self) -> bool {
+        if let ArchiveValueVariant::Integer(_) = &self.value {
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Returns [Some] with a reference to a contained float ([f64]) if a value represents it or [None] if it doesn't.
+    pub fn as_float(&self) -> Option<&f64> {
+        if let ArchiveValueVariant::Real(v) = &self.value {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    /// Checks if a contained value is a float ([f64]).
+    pub fn is_float(&self) -> bool {
+        if let ArchiveValueVariant::Real(_) = &self.value {
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Returns [Some] with a reference to a contained [Object] if a value represents it or [None] if it doesn't.
+    pub fn as_object(&self) -> Option<&Object> {
+        if let ArchiveValueVariant::Object(v) = &self.value {
+            Some(v)
+        } else {
+            None
+        }
+    }
 
     pub(crate) fn as_object_mut(&mut self) -> Option<&mut Object> {
         if let ArchiveValueVariant::Object(v) = &mut self.value {
@@ -86,6 +131,34 @@ impl ArchiveValue {
         }
     }
 
+    /// Checks if a contained value is an [Object].
+    pub fn is_object(&self) -> bool {
+        if let ArchiveValueVariant::Object(_) = &self.value {
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Returns [Some] with a slice of class strings if a value represents it or [None] if it doesn't.
+    pub fn as_classes(&self) -> Option<&[String]> {
+        if let ArchiveValueVariant::Classes(v) = &self.value {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    /// Checks if a contained value is class strings.
+    pub fn is_classes(&self) -> bool {
+        if let ArchiveValueVariant::Classes(_) = &self.value {
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Checks if a contained value is a null reference.
     pub fn is_null_ref(&self) -> bool {
         if let ArchiveValueVariant::NullRef = &self.value {
             true
@@ -94,6 +167,7 @@ impl ArchiveValue {
         }
     }
 
+    /// Returns a [UniqueId] of a given value.
     pub fn unique_id(&self) -> &UniqueId {
         &self.unique_id
     }
@@ -105,6 +179,10 @@ pub struct NSKeyedUnarchiver {
 }
 
 impl NSKeyedUnarchiver {
+    /// Creates a new unarchiver from a [plist::Value]. It should be the root
+    /// value of a plist and have a NSKeyedArchiver plist structure.
+    ///
+    /// Returns an instance of itself or an [Error] if something went wrong.
     pub fn new(plist: PlistValue) -> Result<Self, Error> {
         let Some(mut dict) = plist.into_dictionary() else {
             return Err(Error::IncorrectFormat("Expected root key to be a type of 'Dictionary'".into()));
@@ -146,6 +224,7 @@ impl NSKeyedUnarchiver {
         Ok(Self { objects, top })
     }
 
+    /// Returns a [HashMap] created from the `$top` value.
     pub fn top(&self) -> HashMap<String, ValueRef> {
         let mut map = HashMap::with_capacity(self.top.len());
         for (key, value) in &self.top {
@@ -155,10 +234,12 @@ impl NSKeyedUnarchiver {
         map
     }
 
+    /// Returns all values contained inside of an archive. One may rarely use this.
     pub fn values(&self) -> &[ValueRef] {
         &self.objects
     }
 
+    /// Gets a key from a [plist::Dictionary] or an [Error] if it doesn't exist.
     fn get_header_key(dict: &mut PlistDictionary, key: &'static str) -> Result<PlistValue, Error> {
         let Some(objects_value) = dict.remove(key) else {
             return Err(Error::IncorrectFormat(format!("Missing '{key}' header key")));
@@ -166,27 +247,28 @@ impl NSKeyedUnarchiver {
         Ok(objects_value)
     }
 
-    /// Reads a plist file and creates a new converter for it. It should have a
-    /// NSKeyedArchiver plist structure.
+    /// Reads a plist file and creates a new unarchiver from it.
+    /// It should have a NSKeyedArchiver plist structure.
     pub fn from_file<P: AsRef<std::path::Path>>(path: P) -> Result<Self, Error> {
         let val: PlistValue = plist::from_file(path)?;
         Self::new(val)
     }
 
-    /// Reads a plist from a byte slice and creates a new converter for it.
+    /// Reads a plist from a byte slice and creates a new unarchiver from it.
     /// It should have a NSKeyedArchiver plist structure.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
         let val: PlistValue = plist::from_bytes(bytes)?;
         Self::new(val)
     }
 
-    /// Reads a plist from a seekable byte stream and creates a new converter
-    /// for it. It should have a NSKeyedArchiver plist structure.
+    /// Reads a plist from a seekable byte stream and creates a new unarchiver from it.
+    /// It should have a NSKeyedArchiver plist structure.
     pub fn from_reader<R: std::io::Read + std::io::Seek>(reader: R) -> Result<Self, Error> {
         let val: PlistValue = plist::from_reader(reader)?;
         Self::new(val)
     }
 
+    /// Checks if a [plist::Value] has an object structure.
     fn is_container(val: &PlistValue) -> bool {
         let Some(dict) = val.as_dictionary() else {
             return false;
@@ -198,6 +280,8 @@ impl NSKeyedUnarchiver {
         }
     }
 
+    /// Decodes all values into a vector of Rc<[ArchiveValue]>. Returns an [Error]
+    /// if something went wrong.
     fn decode_objects(objects: Vec<PlistValue>) -> Result<Vec<ValueRef>, Error> {
         let mut decoded_objects = Vec::with_capacity(objects.len());
 

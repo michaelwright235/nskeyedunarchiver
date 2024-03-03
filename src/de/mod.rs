@@ -4,9 +4,21 @@ pub use impls::*;
 use crate::{DeError, ValueRef};
 use std::any::{Any, TypeId};
 
+/// A trait that can be implemented for a structure to be decodable.
 pub trait Decodable: Sized {
+    /// This method should return `true` if a structure that implements this method
+    /// is logically represents the object.
+    ///
+    /// Usually you only need to check the first value from the given `classes` string slice
+    /// that represents the main class. However you can also check the other ones which
+    /// are the parents of this class.
     fn is_type_of(classes: &[String]) -> bool;
+
+    /// The main decoding method of your structure
     fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError>;
+
+    #[doc(hidden)]
+    /// This is an internal method that usually shouldn't be overwritten.
     fn decode_as_any(
         value: ValueRef,
         types: &[ObjectType],
@@ -16,6 +28,9 @@ pub trait Decodable: Sized {
     {
         Ok(Box::new(Self::decode(value, types)?) as Box<dyn std::any::Any>)
     }
+
+    #[doc(hidden)]
+    /// This is an internal method that usually shouldn't be overwritten.
     fn as_object_type() -> ObjectType
     where
         Self: 'static,
@@ -27,6 +42,7 @@ pub trait Decodable: Sized {
 type IsTypeOfFn = fn(classes: &[String]) -> bool;
 type DecodeAsAnyFn = fn(obj: ValueRef, types: &[ObjectType]) -> Result<Box<dyn Any>, DeError>;
 
+#[doc(hidden)]
 pub struct ObjectType(TypeId, IsTypeOfFn, DecodeAsAnyFn);
 impl ObjectType {
     pub fn new(t: TypeId, c: IsTypeOfFn, d: DecodeAsAnyFn) -> Self {
@@ -98,5 +114,3 @@ pub fn value_ref_to_any(
         ))),
     }
 }
-
-// pub fn value_ref_to_t<T>

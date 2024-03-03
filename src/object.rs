@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use crate::{DeError, Error, Integer, ValueRef, NULL_OBJECT_REFERENCE_NAME};
+use crate::{de::{value_ref_to_any, Decodable, ObjectType}, DeError, Error, Integer, ValueRef, NULL_OBJECT_REFERENCE_NAME};
 use plist::{Dictionary as PlistDictionary, Value as PlistValue};
 
 macro_rules! get_key {
     ($self:ident, $key:ident, $typ:literal) => {{
         if !$self.contains_key($key) {
             return Err(DeError::Message(format!(
-                "Missing key '{0}' for object '{1}'",
+                "{1}: Missing key '{0}' for object",
                 $key,
                 $self.class()
             )));
@@ -22,7 +22,7 @@ macro_rules! get_key {
         }
         if obj.is_none() {
             return Err(DeError::Message(format!(
-                "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
+                "{1}: Incorrect value type of '{0}' for key '{3}'. Expected '{2}'",
                 $typ,
                 $self.class(),
                 raw_object.as_plain_type(),
@@ -33,7 +33,7 @@ macro_rules! get_key {
     }};
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum ObjectValue {
     String(String),
     Integer(Integer),
@@ -73,22 +73,35 @@ pub struct Object {
 }
 
 impl Object {
+    /// Tries to decode a value as a boolean with a given `key`.
+    /// If it doesn't exist or has some other type a [DeError] is returned.
     pub fn decode_bool(&self, key: &str) -> Result<bool, DeError> {
         Ok(*get_key!(self, key, "boolean"))
     }
 
+    /// Tries to decode a value as a data (a vector of bytes) with a given `key`.
+    /// If it doesn't exist or has some other type a [DeError] is returned.
     pub fn decode_data(&self, key: &str) -> Result<&[u8], DeError> {
         Ok(get_key!(self, key, "data"))
     }
 
-    pub fn decode_real(&self, key: &str) -> Result<&f64, DeError> {
+    /// Tries to decode a value as a float with a given `key`.
+    /// If it doesn't exist or has some other type a [DeError] is returned.
+    pub fn decode_float(&self, key: &str) -> Result<&f64, DeError> {
         Ok(get_key!(self, key, "real"))
     }
 
+    /// Tries to decode a value as an integer with a given `key`.
+    /// If it doesn't exist or has some other type a [DeError] is returned.
     pub fn decode_integer(&self, key: &str) -> Result<&Integer, DeError> {
         Ok(get_key!(self, key, "integer"))
     }
 
+    /// Tries to decode a value as a string with a given `key`.
+    /// If it doesn't exist or has some other type a [DeError] is returned.
+    ///
+    /// NSKeyedArchive objects don't contain plain strings, rather
+    /// references to a string value. This function just makes it easy to access.
     pub fn decode_string(&self, key: &str) -> Result<&str, DeError> {
         // As far as I can tell all strings inside of objects are
         // linked with UIDs
@@ -106,16 +119,36 @@ impl Object {
         Ok(string)
     }
 
+    /// Tries to decode a value as an object with a given `key` and returns a
+    /// [ValueRef] of an archive value.
+    /// If it doesn't exist or has some other type a [DeError] is returned.
+    ///
+    /// One may rarely use this method, look at [decode_object_as] method instead.
     pub fn decode_object(&self, key: &str) -> Result<&ValueRef, DeError> {
         let obj = get_key!(self, key, "ref");
         Ok(obj)
     }
 
+    /// Tries to decode a value as a `<T>` object with a given `key`.
+    /// If it doesn't exist or has some other type a [DeError] is returned.
+    pub fn decode_object_as<T>(&self, key: &str, types: &[ObjectType]) -> Result<T, DeError> where T: Decodable + 'static {
+        let obj = value_ref_to_any(self.decode_object(key)?.clone(), types)?;
+        if let Ok(decoded) = obj.downcast::<T>() {
+            Ok(*decoded)
+        } else {
+            Err(DeError::Message(format!("{}: Unable to downcast objects", self.class())))
+        }
+    }
+
+    /// Tries to decode a value as an array of value references with a given `key`.
+    /// If it doesn't exist or has some other type a [DeError] is returned.
     pub fn decode_array(&self, key: &str) -> Result<&[ValueRef], DeError> {
         let array = get_key!(self, key, "ref_array");
         Ok(array)
     }
 
+    /// Checks if a value under the `key` is a null reference.
+    /// Returns a [DeError] if a value doesn't exist.
     pub fn is_null_ref(&self, key: &str) -> Result<bool, DeError> {
         if !self.contains_key(key) {
             return Err(DeError::Message(format!(
@@ -133,16 +166,20 @@ impl Object {
         )
     }
 
+    /// Checks if the object contains a value with a given `key`.
     pub fn contains_key(&self, key: &str) -> bool {
         self.fields.contains_key(key)
     }
 
+    /// Returns classes of the object. The first one is the actual class,
+    /// the other ones are its parents.
     pub fn classes(&self) -> &[String] {
         let a = self.classes.as_ref().unwrap();
         let b = a.as_classes().unwrap();
         b
     }
 
+    /// Returns a class of the object
     pub fn class(&self) -> &str {
         let a = self.classes.as_ref().unwrap();
         &a.as_classes().as_ref().unwrap()[0]

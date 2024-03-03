@@ -45,12 +45,12 @@ fn simple_array() {
 
     let (root, weak_refs) = open_file("simpleArray.plist");
     let mut decoded_data = NSArray::decode(root, &object_types!()).unwrap();
-    let parent0: Box<String> = decoded_data.remove_as_object::<String>(0).unwrap();
+    let parent0: String = decoded_data.remove_as_object::<String>(0).unwrap();
     assert_eq!(parent0.as_str(), "value1");
-    let parent1: Box<String> = decoded_data.remove_as_object::<String>(0).unwrap();
+    let parent1: String = decoded_data.remove_as_object::<String>(0).unwrap();
     assert_eq!(parent1.as_str(), "value2");
 
-    let parent2: Vec<Box<String>> = decoded_data
+    let parent2: Vec<String> = decoded_data
         .remove_as_object::<NSArray>(0)
         .unwrap()
         .try_into_objects::<String>()
@@ -83,7 +83,7 @@ fn simple_dict() {
         .unwrap();
     assert_eq!(value2.as_str(), "Second value");
 
-    let value3: Vec<Box<Integer>> = decoded_data
+    let value3: Vec<Integer> = decoded_data
         .remove_as_object::<NSArray>("Array key")
         .unwrap()
         .try_into_objects::<Integer>()

@@ -21,7 +21,7 @@ impl Decodable for f64 {
         false
     }
     fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
-        let Some(float) = value.as_real() else {
+        let Some(float) = value.as_float() else {
             return Err(DeError::ExpectedReal);
         };
         Ok(*float)
@@ -111,7 +111,7 @@ impl Decodable for NSArray {
             } else if let Some(_) = obj.as_ref().as_integer() {
                 let i = Integer::decode(obj.clone(), &[])?;
                 decoded_objs.push(Box::new(i) as Box<dyn Any>);
-            } else if let Some(_) = obj.as_ref().as_real() {
+            } else if let Some(_) = obj.as_ref().as_float() {
                 let f = f64::decode(obj.clone(), &[])?;
                 decoded_objs.push(Box::new(f) as Box<dyn Any>);
             } else if let Some(_) = obj.as_ref().as_object() {
@@ -127,7 +127,7 @@ impl Decodable for NSArray {
 }
 
 impl NSArray {
-    pub fn try_into_objects<T>(self) -> Result<Vec<Box<T>>, DeError>
+    pub fn try_into_objects<T>(self) -> Result<Vec<T>, DeError>
     where
         T: Decodable + 'static,
     {
@@ -137,10 +137,10 @@ impl NSArray {
                 return Err(DeError::Message("NSArray: Unable to downcast objects".to_string()));
             }
         }
-        let mut objects: Vec<Box<T>> = Vec::with_capacity(data.len());
+        let mut objects: Vec<T> = Vec::with_capacity(data.len());
         for obj in data {
             let downcasted = obj.downcast::<T>().unwrap();
-            objects.push(downcasted);
+            objects.push(*downcasted);
         }
         Ok(objects)
     }
@@ -156,13 +156,13 @@ impl NSArray {
         };
         Ok(downcasted)
     }
-    pub fn remove_as_object<T>(&mut self, index: usize) -> Result<Box<T>, DeError>
+    pub fn remove_as_object<T>(&mut self, index: usize) -> Result<T, DeError>
     where
         T: Decodable + 'static,
     {
         let _ = self.get_as_object::<T>(index)?;
         let downcasted = self.data.remove(index).downcast::<T>().unwrap();
-        Ok(downcasted)
+        Ok(*downcasted)
     }
 }
 

@@ -1,13 +1,18 @@
 use thiserror::Error;
 
+/// An error that can happen during parsing an archive.
 #[derive(Error, Debug)]
 pub enum Error {
+    /// Happens if something went wrong during opening or parsing a plist.
     #[error(transparent)]
     PlistError(#[from] plist::Error),
+
+    /// Happens if an archive itself has an incorrent structure.
     #[error("Incorrect NSKeyedArchive format: {0}")]
     IncorrectFormat(String),
 }
 
+/// An error that may happen during decoding an [Object](crate::Object).
 #[derive(Error, Debug)]
 pub enum DeError {
     #[error("{0}")]
