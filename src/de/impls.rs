@@ -2,7 +2,6 @@ use super::{value_ref_to_any, Decodable, ObjectType};
 use crate::{as_object, DeError, Integer, ValueRef};
 use std::any::Any;
 use std::collections::HashMap;
-use std::ops::{Deref, DerefMut};
 
 impl Decodable for String {
     fn is_type_of(_classes: &[String]) -> bool {
@@ -66,15 +65,15 @@ macro_rules! class_wrapper {
                 self.data
             }
         }
-        impl Deref for $name {
-            type Target = $dataType;
 
-            fn deref(&self) -> &Self::Target {
+        impl AsRef<$dataType> for $name {
+            fn as_ref(&self) -> &$dataType {
                 &self.data
             }
         }
-        impl DerefMut for $name {
-            fn deref_mut(&mut self) -> &mut Self::Target {
+
+        impl AsMut<$dataType> for $name {
+            fn as_mut(&mut self) -> &mut $dataType {
                 &mut self.data
             }
         }
@@ -233,14 +232,14 @@ impl Decodable for NSDictionary {
         }
         let mut objects = NSArray::decode(value, types)?;
 
-        if keys.len() != objects.len() {
+        if keys.len() != objects.as_ref().len() {
             return Err(DeError::Message(
                 "NSDictionary: The number of keys is not equal to the number of values".to_string(),
             ));
         }
         let mut hashmap = HashMap::with_capacity(keys.len());
         for _ in 0..keys.len() {
-            hashmap.insert(keys.pop().unwrap(), objects.pop().unwrap());
+            hashmap.insert(keys.pop().unwrap(), objects.as_mut().pop().unwrap());
         }
         Ok(Self {
             data: hashmap,
