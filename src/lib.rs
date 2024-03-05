@@ -71,11 +71,7 @@ impl ArchiveValue {
 
     /// Checks if a contained value is a [String].
     pub fn is_string(&self) -> bool {
-        if let ArchiveValueVariant::String(_) = &self.value {
-            true
-        } else {
-            false
-        }
+        matches!(&self.value, ArchiveValueVariant::String(_))
     }
 
     /// Returns [Some] with a reference to a contained [Integer] if a value represents it or [None] if it doesn't.
@@ -89,11 +85,7 @@ impl ArchiveValue {
 
     /// Checks if a contained value is an [Integer].
     pub fn is_integer(&self) -> bool {
-        if let ArchiveValueVariant::Integer(_) = &self.value {
-            true
-        } else {
-            false
-        }
+        matches!(&self.value, ArchiveValueVariant::Integer(_))
     }
 
     /// Returns [Some] with a reference to a contained float ([f64]) if a value represents it or [None] if it doesn't.
@@ -107,11 +99,7 @@ impl ArchiveValue {
 
     /// Checks if a contained value is a float ([f64]).
     pub fn is_float(&self) -> bool {
-        if let ArchiveValueVariant::Real(_) = &self.value {
-            true
-        } else {
-            false
-        }
+        matches!(&self.value, ArchiveValueVariant::Real(_))
     }
 
     /// Returns [Some] with a reference to a contained [Object] if a value represents it or [None] if it doesn't.
@@ -133,11 +121,7 @@ impl ArchiveValue {
 
     /// Checks if a contained value is an [Object].
     pub fn is_object(&self) -> bool {
-        if let ArchiveValueVariant::Object(_) = &self.value {
-            true
-        } else {
-            false
-        }
+        matches!(&self.value, ArchiveValueVariant::Object(_))
     }
 
     /// Returns [Some] with a slice of class strings if a value represents it or [None] if it doesn't.
@@ -151,20 +135,12 @@ impl ArchiveValue {
 
     /// Checks if a contained value is class strings.
     pub fn is_classes(&self) -> bool {
-        if let ArchiveValueVariant::Classes(_) = &self.value {
-            true
-        } else {
-            false
-        }
+        matches!(&self.value, ArchiveValueVariant::Classes(_))
     }
 
     /// Checks if a contained value is a null reference.
     pub fn is_null_ref(&self) -> bool {
-        if let ArchiveValueVariant::NullRef = &self.value {
-            true
-        } else {
-            false
-        }
+        matches!(&self.value, ArchiveValueVariant::NullRef)
     }
 
     /// Returns a [UniqueId] of a given value.
@@ -185,39 +161,53 @@ impl NSKeyedUnarchiver {
     /// Returns an instance of itself or an [Error] if something went wrong.
     pub fn new(plist: PlistValue) -> Result<Self, Error> {
         let Some(mut dict) = plist.into_dictionary() else {
-            return Err(Error::IncorrectFormat("Expected root key to be a type of 'Dictionary'".into()));
+            return Err(Error::IncorrectFormat(
+                "Expected root key to be a type of 'Dictionary'".into(),
+            ));
         };
 
         // Check $archiver key
         let archiver_key = Self::get_header_key(&mut dict, ARCHIVER_KEY_NAME)?;
         let Some(archiver_str) = archiver_key.as_string() else {
-            return Err(Error::IncorrectFormat(format!("Expected '{ARCHIVER_KEY_NAME}' key to be a type of 'String'")));
+            return Err(Error::IncorrectFormat(format!(
+                "Expected '{ARCHIVER_KEY_NAME}' key to be a type of 'String'"
+            )));
         };
 
         if archiver_str != ARCHIVER {
-            return Err(Error::IncorrectFormat(format!("Unsupported archiver. Only '{ARCHIVER}' is supported")));
+            return Err(Error::IncorrectFormat(format!(
+                "Unsupported archiver. Only '{ARCHIVER}' is supported"
+            )));
         }
 
         // Check $version key
         let version_key = Self::get_header_key(&mut dict, VERSION_KEY_NAME)?;
         let Some(version_num) = version_key.as_unsigned_integer() else {
-            return Err(Error::IncorrectFormat(format!("Expected '{VERSION_KEY_NAME}' key to be a type of 'Number'")));
+            return Err(Error::IncorrectFormat(format!(
+                "Expected '{VERSION_KEY_NAME}' key to be a type of 'Number'"
+            )));
         };
 
         if version_num != ARCHIVER_VERSION {
-            return Err(Error::IncorrectFormat(format!("Unsupported archiver version. Only '{ARCHIVER_VERSION}' is supported")));
+            return Err(Error::IncorrectFormat(format!(
+                "Unsupported archiver version. Only '{ARCHIVER_VERSION}' is supported"
+            )));
         }
 
         // Check $top key
         let top_key = Self::get_header_key(&mut dict, TOP_KEY_NAME)?;
         let Some(top) = top_key.to_owned().into_dictionary() else {
-            return Err(Error::IncorrectFormat(format!("Expected '{TOP_KEY_NAME}' key to be a type of 'Dictionary'")));
+            return Err(Error::IncorrectFormat(format!(
+                "Expected '{TOP_KEY_NAME}' key to be a type of 'Dictionary'"
+            )));
         };
 
         // Check $objects key
         let objects_key = Self::get_header_key(&mut dict, OBJECTS_KEY_NAME)?;
         let Some(raw_objects) = objects_key.into_array() else {
-            return Err(Error::IncorrectFormat(format!("Expected '{OBJECTS_KEY_NAME}' key to be a type of 'Array'")));
+            return Err(Error::IncorrectFormat(format!(
+                "Expected '{OBJECTS_KEY_NAME}' key to be a type of 'Array'"
+            )));
         };
 
         let objects = Self::decode_objects(raw_objects)?;
@@ -242,7 +232,9 @@ impl NSKeyedUnarchiver {
     /// Gets a key from a [plist::Dictionary] or an [Error] if it doesn't exist.
     fn get_header_key(dict: &mut PlistDictionary, key: &'static str) -> Result<PlistValue, Error> {
         let Some(objects_value) = dict.remove(key) else {
-            return Err(Error::IncorrectFormat(format!("Missing '{key}' header key")));
+            return Err(Error::IncorrectFormat(format!(
+                "Missing '{key}' header key"
+            )));
         };
         Ok(objects_value)
     }
@@ -330,19 +322,13 @@ impl NSKeyedUnarchiver {
                             UniqueId::new(index),
                         )
                     } else {
-                        return Err(Error::IncorrectFormat(
-                            "Incorrect Classes object".into(),
-                        ));
+                        return Err(Error::IncorrectFormat("Incorrect Classes object".into()));
                     }
                 } else {
-                    return Err(Error::IncorrectFormat(
-                        "Unexpected object type".into(),
-                    ));
+                    return Err(Error::IncorrectFormat("Unexpected object type".into()));
                 }
             } else {
-                return Err(Error::IncorrectFormat(
-                    "Unexpected object type".into(),
-                ));
+                return Err(Error::IncorrectFormat("Unexpected object type".into()));
             };
             decoded_objects.push(Rc::new(decoded_obj));
         }

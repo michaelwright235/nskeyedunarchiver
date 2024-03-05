@@ -105,16 +105,16 @@ impl Decodable for NSArray {
 
         let mut decoded_objs = Vec::with_capacity(inner_objs.len());
         for obj in inner_objs {
-            if let Some(_) = obj.as_ref().as_string() {
+            if obj.as_ref().as_string().is_some() {
                 let s = String::decode(obj.clone(), &[])?;
                 decoded_objs.push(Box::new(s) as Box<dyn Any>);
-            } else if let Some(_) = obj.as_ref().as_integer() {
+            } else if obj.as_ref().as_integer().is_some() {
                 let i = Integer::decode(obj.clone(), &[])?;
                 decoded_objs.push(Box::new(i) as Box<dyn Any>);
-            } else if let Some(_) = obj.as_ref().as_float() {
+            } else if obj.as_ref().as_float().is_some() {
                 let f = f64::decode(obj.clone(), &[])?;
                 decoded_objs.push(Box::new(f) as Box<dyn Any>);
-            } else if let Some(_) = obj.as_ref().as_object() {
+            } else if obj.as_ref().as_object().is_some() {
                 decoded_objs.push(value_ref_to_any(obj.clone(), types)?);
             }
         }
@@ -134,7 +134,9 @@ impl NSArray {
         let data = self.data;
         for value in &data {
             if value.downcast_ref::<T>().is_none() {
-                return Err(DeError::Message("NSArray: Unable to downcast objects".to_string()));
+                return Err(DeError::Message(
+                    "NSArray: Unable to downcast objects".to_string(),
+                ));
             }
         }
         let mut objects: Vec<T> = Vec::with_capacity(data.len());
@@ -152,7 +154,9 @@ impl NSArray {
             return Err(DeError::Message("NSArray: Missing array key".to_string()));
         };
         let Some(downcasted) = self.data.get(index).unwrap().downcast_ref::<T>() else {
-            return Err(DeError::Message("NSArray: Unable to downcast objects".to_string()));
+            return Err(DeError::Message(
+                "NSArray: Unable to downcast objects".to_string(),
+            ));
         };
         Ok(downcasted)
     }
@@ -252,9 +256,11 @@ impl NSDictionary {
         T: Decodable + 'static,
     {
         let data = self.data;
-        for (_, value) in &data {
+        for value in data.values() {
             if value.downcast_ref::<T>().is_none() {
-                return Err(DeError::Message("NSDictionary: Unable to downcast objects".to_string()));
+                return Err(DeError::Message(
+                    "NSDictionary: Unable to downcast objects".to_string(),
+                ));
             }
         }
 
@@ -280,10 +286,14 @@ impl NSDictionary {
         T: Decodable + 'static,
     {
         if self.data.get(key).is_none() {
-            return Err(DeError::Message("NSDictionary: Missing hashmap key".to_string()));
+            return Err(DeError::Message(
+                "NSDictionary: Missing hashmap key".to_string(),
+            ));
         };
         let Some(downcasted) = self.data.get(key).unwrap().downcast_ref::<T>() else {
-            return Err(DeError::Message("NSDictionary: Unable to downcast objects".to_string()));
+            return Err(DeError::Message(
+                "NSDictionary: Unable to downcast objects".to_string(),
+            ));
         };
         Ok(downcasted)
     }

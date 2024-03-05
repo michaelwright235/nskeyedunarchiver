@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::{de::{value_ref_to_any, Decodable, ObjectType}, DeError, Error, Integer, ValueRef, NULL_OBJECT_REFERENCE_NAME};
+use crate::{
+    de::{value_ref_to_any, Decodable, ObjectType},
+    DeError, Error, Integer, ValueRef, NULL_OBJECT_REFERENCE_NAME,
+};
 use plist::{Dictionary as PlistDictionary, Value as PlistValue};
 
 macro_rules! get_key {
@@ -13,7 +16,7 @@ macro_rules! get_key {
             )));
         }
         let raw_object = $self.fields.get($key).unwrap();
-        paste::paste!{
+        paste::paste! {
             let obj = if let ObjectValue::[<$typ:camel>](v) = raw_object {
                 Some(v)
             } else {
@@ -131,12 +134,18 @@ impl Object {
 
     /// Tries to decode a value as a `<T>` object with a given `key`.
     /// If it doesn't exist or has some other type a [DeError] is returned.
-    pub fn decode_object_as<T>(&self, key: &str, types: &[ObjectType]) -> Result<T, DeError> where T: Decodable + 'static {
+    pub fn decode_object_as<T>(&self, key: &str, types: &[ObjectType]) -> Result<T, DeError>
+    where
+        T: Decodable + 'static,
+    {
         let obj = value_ref_to_any(self.decode_object(key)?.clone(), types)?;
         if let Ok(decoded) = obj.downcast::<T>() {
             Ok(*decoded)
         } else {
-            Err(DeError::Message(format!("{}: Unable to downcast objects", self.class())))
+            Err(DeError::Message(format!(
+                "{}: Unable to downcast objects",
+                self.class()
+            )))
         }
     }
 
@@ -157,13 +166,10 @@ impl Object {
                 key
             )));
         }
-        Ok(
-            if let ObjectValue::NullRef = self.fields.get(key).unwrap() {
-                true
-            } else {
-                false
-            }
-        )
+        Ok(matches!(
+            self.fields.get(key).unwrap(),
+            ObjectValue::NullRef
+        ))
     }
 
     /// Checks if the object contains a value with a given `key`.
@@ -188,9 +194,10 @@ impl Object {
     pub(crate) fn apply_value_refs(&mut self, tree: &[ValueRef]) -> Result<(), Error> {
         self.classes = Some(tree[self.classes_uid as usize].clone());
         if !self.classes.as_ref().unwrap().is_classes() {
-            return Err(Error::IncorrectFormat(
-                format!("Incorrent Classes structure (uid: {})", self.classes_uid)
-            ));
+            return Err(Error::IncorrectFormat(format!(
+                "Incorrent Classes structure (uid: {})",
+                self.classes_uid
+            )));
         }
 
         for value in self.fields.values_mut() {
@@ -198,9 +205,7 @@ impl Object {
                 if let Some(obj_ref) = tree.get(*r as usize) {
                     *value = ObjectValue::Ref(obj_ref.clone());
                 } else {
-                    return Err(Error::IncorrectFormat(
-                        format!("Incorrent object uid: {r}"),
-                    ))
+                    return Err(Error::IncorrectFormat(format!("Incorrent object uid: {r}")));
                 }
             }
             if let ObjectValue::RawRefArray(arr) = value {
@@ -209,9 +214,9 @@ impl Object {
                     if let Some(obj_ref) = tree.get(*item as usize) {
                         ref_arr.push(obj_ref.clone())
                     } else {
-                        return Err(Error::IncorrectFormat(
-                            format!("Incorrent object uid: {item}"),
-                        ))
+                        return Err(Error::IncorrectFormat(format!(
+                            "Incorrent object uid: {item}"
+                        )));
                     }
                 }
                 *value = ObjectValue::RefArray(ref_arr);
@@ -243,9 +248,9 @@ impl Object {
                 let mut arr_of_uids = Vec::with_capacity(arr.len());
                 for val in obj.into_array().unwrap() {
                     if val.as_uid().is_none() {
-                        return Err(Error::IncorrectFormat(
-                            format!("Array (uid: {classes_uid}) should countain only object references"),
-                        ));
+                        return Err(Error::IncorrectFormat(format!(
+                            "Array (uid: {classes_uid}) should countain only object references"
+                        )));
                     } else {
                         arr_of_uids.push(val.into_uid().unwrap().get());
                     }

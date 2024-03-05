@@ -102,7 +102,7 @@ pub fn value_ref_to_any(
     let classes = object.classes();
     let mut result = None;
     for typ in types {
-        if typ.is_type_of(&classes) {
+        if typ.is_type_of(classes) {
             result = Some(typ.decode(value_ref.clone(), types));
         }
     }
