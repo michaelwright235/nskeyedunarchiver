@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-paste = "1.0.14"
-plist = "1.6.0"
-thiserror = "1.0.57"
+paste = "1.0"
+plist = "1.6"
+thiserror = "1.0"
 
 [dev-dependencies]
 simplelog = "0.12.1"
