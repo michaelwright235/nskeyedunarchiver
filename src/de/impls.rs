@@ -4,14 +4,26 @@ use std::any::Any;
 use std::collections::HashMap;
 
 impl Decodable for String {
-    fn is_type_of(_classes: &[String]) -> bool {
-        false
+    fn is_type_of(classes: &[String]) -> bool {
+        classes[0] == "NSString"
     }
     fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
-        let Some(s) = value.as_string() else {
-            return Err(DeError::ExpectedString);
-        };
-        Ok(s.to_string())
+        // A string can be encoded as a plain String type
+        if let Some(s) = value.as_string() { Ok(s.to_string()) }
+        // ... or as an Object with `NS.bytes` data (NIB Archives)
+        else if let Some(obj) = value.as_object() {
+            if !obj.contains_key("NS.bytes") {
+                return Err(DeError::ExpectedString);
+            }
+            let s = String::from_utf8(obj.decode_data("NS.bytes").unwrap().to_vec());
+            if let Err(e) = s {
+                return Err(DeError::Message(format!("Unable to parse a UTF-8 string: {e}")));
+            }
+            Ok(s.unwrap())
+        }
+        else {
+            Err(DeError::ExpectedString)
+        }
     }
 }
 
