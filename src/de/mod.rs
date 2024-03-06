@@ -61,7 +61,8 @@ impl ObjectType {
 
 #[macro_export]
 macro_rules! object_types {
-    ($($name:ident),*) => {
+    ($($name:ident),*) => {{
+        use $crate::de::Decodable;
         Vec::from([
             $crate::de::NSArray::as_object_type(),
             $crate::de::NSSet::as_object_type(),
@@ -71,7 +72,7 @@ macro_rules! object_types {
                 $name::as_object_type()
             ),*
         ])
-    };
+    }};
 }
 
 #[macro_export]
