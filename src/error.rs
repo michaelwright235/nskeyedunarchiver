@@ -21,8 +21,8 @@ pub enum DeError {
     ExpectedString,
     #[error("Expected integer")]
     ExpectedInteger,
-    #[error("Expected real")]
-    ExpectedReal,
+    #[error("Expected float")]
+    ExpectedFloat,
     #[error("Expected boolean")]
     ExpectedBoolean,
     #[error("Expected data")]

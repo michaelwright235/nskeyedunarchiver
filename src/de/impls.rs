@@ -33,7 +33,7 @@ impl Decodable for f64 {
     }
     fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
         let Some(float) = value.as_float() else {
-            return Err(DeError::ExpectedReal);
+            return Err(DeError::ExpectedFloat);
         };
         Ok(*float)
     }
