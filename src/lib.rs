@@ -218,8 +218,9 @@ impl NSKeyedUnarchiver {
     pub fn top(&self) -> HashMap<String, ValueRef> {
         let mut map = HashMap::with_capacity(self.top.len());
         for (key, value) in &self.top {
-            let uid = value.as_uid().unwrap().get() as usize;
-            map.insert(key.to_string(), self.objects[uid].clone());
+            if let Some(uid) = value.as_uid() {
+                map.insert(key.to_string(), self.objects[uid.get() as usize].clone());
+            }
         }
         map
     }
