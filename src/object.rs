@@ -175,6 +175,21 @@ impl Object {
         Ok(array)
     }
 
+    /// Returns the number of object's keys.
+    pub fn len(&self) -> usize {
+        self.fields.len()
+    }
+
+    /// Returns `true` if the object contains no elements.
+    pub fn is_empty(&self) -> bool {
+        self.fields.is_empty()
+    }
+
+    /// Returns an array of object's keys.
+    pub fn keys(&self) -> Vec<&String> {
+        self.fields.keys().collect()
+    }
+
     /// Checks if a value under the `key` is a null reference.
     /// Returns a [DeError] if a value doesn't exist.
     pub fn is_null_ref(&self, key: &str) -> Result<bool, DeError> {
