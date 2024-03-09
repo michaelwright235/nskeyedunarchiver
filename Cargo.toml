@@ -3,7 +3,12 @@ name = "nskeyedunarchiver"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+# Makes `Debug` a super trait of Decodable. Useful for analyzing data.
+debug_decodable = []
+
 [dependencies]
+downcast-rs = "1.2.0"
 paste = "1.0"
 plist = "1.6"
 thiserror = "1.0"

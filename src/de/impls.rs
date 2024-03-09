@@ -1,15 +1,17 @@
 use super::{value_ref_to_any, Decodable, ObjectType};
 use crate::{as_object, DeError, Integer, ValueRef};
-use std::any::Any;
 use std::collections::HashMap;
 
 impl Decodable for String {
     fn is_type_of(classes: &[String]) -> bool {
         classes[0] == "NSString"
     }
+    fn class(&self) -> &str {"NSString"}
     fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
         // A string can be encoded as a plain String type
-        if let Some(s) = value.as_string() { Ok(s.to_string()) }
+        if let Some(s) = value.as_string() {
+            Ok(s.to_string())
+        }
         // ... or as an Object with `NS.bytes` data (NIB Archives)
         else if let Some(obj) = value.as_object() {
             if !obj.contains_key("NS.bytes") {
@@ -17,11 +19,12 @@ impl Decodable for String {
             }
             let s = String::from_utf8(obj.decode_data("NS.bytes").unwrap().to_vec());
             if let Err(e) = s {
-                return Err(DeError::Message(format!("Unable to parse a UTF-8 string: {e}")));
+                return Err(DeError::Message(format!(
+                    "Unable to parse a UTF-8 string: {e}"
+                )));
             }
             Ok(s.unwrap())
-        }
-        else {
+        } else {
             Err(DeError::ExpectedString)
         }
     }
@@ -31,6 +34,7 @@ impl Decodable for f64 {
     fn is_type_of(_classes: &[String]) -> bool {
         false
     }
+    fn class(&self) -> &str {""}
     fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
         let Some(float) = value.as_float() else {
             return Err(DeError::ExpectedFloat);
@@ -43,7 +47,7 @@ impl Decodable for Integer {
     fn is_type_of(_classes: &[String]) -> bool {
         false
     }
-
+    fn class(&self) -> &str {""}
     fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
         let Some(int) = value.as_integer() else {
             return Err(DeError::ExpectedInteger);
@@ -92,11 +96,12 @@ macro_rules! class_wrapper {
     };
 }
 
+#[derive(Debug)]
 pub struct NSArray {
-    data: Vec<Box<dyn Any>>,
+    data: Vec<Box<dyn Decodable>>,
     is_mutable: bool,
 }
-class_wrapper!(NSArray, Vec<Box<dyn Any>>);
+class_wrapper!(NSArray, Vec<Box<dyn Decodable>>);
 
 impl Decodable for NSArray {
     fn is_type_of(classes: &[String]) -> bool {
@@ -104,6 +109,9 @@ impl Decodable for NSArray {
             || classes[0] == "NSMutableArray"
             || classes[0] == "NSSet"
             || classes[0] == "NSMutableSet"
+    }
+    fn class(&self) -> &str {
+        if !self.is_mutable {"NSArray"} else {"NSMutableArray"}
     }
     fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError> {
         let obj = as_object!(value)?;
@@ -118,13 +126,13 @@ impl Decodable for NSArray {
         for obj in inner_objs {
             if obj.as_ref().as_string().is_some() {
                 let s = String::decode(obj.clone(), &[])?;
-                decoded_objs.push(Box::new(s) as Box<dyn Any>);
+                decoded_objs.push(Box::new(s) as Box<dyn Decodable>);
             } else if obj.as_ref().as_integer().is_some() {
                 let i = Integer::decode(obj.clone(), &[])?;
-                decoded_objs.push(Box::new(i) as Box<dyn Any>);
+                decoded_objs.push(Box::new(i) as Box<dyn Decodable>);
             } else if obj.as_ref().as_float().is_some() {
                 let f = f64::decode(obj.clone(), &[])?;
-                decoded_objs.push(Box::new(f) as Box<dyn Any>);
+                decoded_objs.push(Box::new(f) as Box<dyn Decodable>);
             } else if obj.as_ref().as_object().is_some() {
                 decoded_objs.push(value_ref_to_any(obj.clone(), types)?);
             }
@@ -181,15 +189,18 @@ impl NSArray {
     }
 }
 
+#[derive(Debug)]
 pub struct NSSet {
-    data: Vec<Box<dyn Any>>,
+    data: Vec<Box<dyn Decodable>>,
     is_mutable: bool,
 }
 impl Decodable for NSSet {
     fn is_type_of(classes: &[String]) -> bool {
         classes[0] == "NSSet" || classes[0] == "NSMutableSet"
     }
-
+    fn class(&self) -> &str {
+        if !self.is_mutable {"NSSet"} else {"NSMutableSet"}
+    }
     fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError> {
         let obj = as_object!(value)?;
         let is_mutable = obj.class() == "NSMutableSet";
@@ -199,7 +210,7 @@ impl Decodable for NSSet {
         })
     }
 }
-class_wrapper!(NSSet, Vec<Box<dyn Any>>);
+class_wrapper!(NSSet, Vec<Box<dyn Decodable>>);
 
 impl From<NSArray> for NSSet {
     fn from(value: NSArray) -> Self {
@@ -219,8 +230,9 @@ impl From<NSSet> for NSArray {
     }
 }
 
+#[derive(Debug)]
 pub struct NSDictionary {
-    data: HashMap<String, Box<dyn Any>>,
+    data: HashMap<String, Box<dyn Decodable>>,
     is_mutable: bool,
 }
 
@@ -228,7 +240,9 @@ impl Decodable for NSDictionary {
     fn is_type_of(classes: &[String]) -> bool {
         classes[0] == "NSDictionary" || classes[0] == "NSMutableDictionary"
     }
-
+    fn class(&self) -> &str {
+        if !self.is_mutable {"NSDictionary"} else {"NSMutableDictionary"}
+    }
     fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError> {
         let obj = as_object!(value)?;
         let is_mutable = obj.class() == "NSMutableDictionary";
@@ -259,7 +273,7 @@ impl Decodable for NSDictionary {
         })
     }
 }
-class_wrapper!(NSDictionary, HashMap<String, Box<dyn Any>>);
+class_wrapper!(NSDictionary, HashMap<String, Box<dyn Decodable>>);
 
 impl NSDictionary {
     pub fn try_into_objects<T>(self) -> Result<HashMap<String, Box<T>>, DeError>
@@ -310,6 +324,7 @@ impl NSDictionary {
     }
 }
 
+#[derive(Debug)]
 pub struct NSData {
     data: Vec<u8>,
     is_mutable: bool,
@@ -320,7 +335,9 @@ impl Decodable for NSData {
     fn is_type_of(classes: &[String]) -> bool {
         classes[0] == "NSData" || classes[0] == "NSMutableData"
     }
-
+    fn class(&self) -> &str {
+        if !self.is_mutable {"NSData"} else {"NSMutableData"}
+    }
     fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
         let obj = as_object!(value)?;
         let is_mutable = obj.class() == "NSMutableData";

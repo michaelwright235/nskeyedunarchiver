@@ -1,7 +1,8 @@
 use std::{borrow::Cow, collections::HashMap};
 
 use crate::{
-    de::{value_ref_to_any, Decodable, ObjectType}, object_types_empty, DeError, Error, Integer, ValueRef, NULL_OBJECT_REFERENCE_NAME
+    de::{value_ref_to_any, Decodable, ObjectType},
+    object_types_empty, DeError, Error, Integer, ValueRef, NULL_OBJECT_REFERENCE_NAME,
 };
 use plist::{Dictionary as PlistDictionary, Value as PlistValue};
 
@@ -120,11 +121,10 @@ impl Object {
                     key
                 )));
             }
-            return Ok(
-                Cow::Owned(
-                    String::decode(obj.clone(), &object_types_empty!(String))?
-                )
-            )
+            return Ok(Cow::Owned(String::decode(
+                obj.clone(),
+                &object_types_empty!(String),
+            )?));
         }
 
         // In regular keyed archives strings are inlined
@@ -158,14 +158,14 @@ impl Object {
         T: Decodable + 'static,
     {
         let obj = value_ref_to_any(self.decode_object(key)?.clone(), types)?;
-        if let Ok(decoded) = obj.downcast::<T>() {
-            Ok(*decoded)
-        } else {
-            Err(DeError::Message(format!(
-                "{}: Unable to downcast objects",
-                self.class()
-            )))
+        if obj.downcast_ref::<T>().is_none() {
+            return Err(DeError::Message(format!(
+                "{}: Unable to downcast object '{key}' of class '{}'",
+                self.class(),
+                obj.class()
+            )));
         }
+        Ok(*obj.downcast::<T>().unwrap())
     }
 
     /// Tries to decode a value as an array of value references with a given `key`.
