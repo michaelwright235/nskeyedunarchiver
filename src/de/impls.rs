@@ -6,7 +6,9 @@ impl Decodable for String {
     fn is_type_of(classes: &[String]) -> bool {
         classes[0] == "NSString"
     }
-    fn class(&self) -> &str {"NSString"}
+    fn class(&self) -> &str {
+        "NSString"
+    }
     fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
         // A string can be encoded as a plain String type
         if let Some(s) = value.as_string() {
@@ -34,7 +36,9 @@ impl Decodable for f64 {
     fn is_type_of(_classes: &[String]) -> bool {
         false
     }
-    fn class(&self) -> &str {""}
+    fn class(&self) -> &str {
+        ""
+    }
     fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
         let Some(float) = value.as_float() else {
             return Err(DeError::ExpectedFloat);
@@ -47,7 +51,9 @@ impl Decodable for Integer {
     fn is_type_of(_classes: &[String]) -> bool {
         false
     }
-    fn class(&self) -> &str {""}
+    fn class(&self) -> &str {
+        ""
+    }
     fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
         let Some(int) = value.as_integer() else {
             return Err(DeError::ExpectedInteger);
@@ -111,7 +117,11 @@ impl Decodable for NSArray {
             || classes[0] == "NSMutableSet"
     }
     fn class(&self) -> &str {
-        if !self.is_mutable {"NSArray"} else {"NSMutableArray"}
+        if !self.is_mutable {
+            "NSArray"
+        } else {
+            "NSMutableArray"
+        }
     }
     fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError> {
         let obj = as_object!(value)?;
@@ -199,7 +209,11 @@ impl Decodable for NSSet {
         classes[0] == "NSSet" || classes[0] == "NSMutableSet"
     }
     fn class(&self) -> &str {
-        if !self.is_mutable {"NSSet"} else {"NSMutableSet"}
+        if !self.is_mutable {
+            "NSSet"
+        } else {
+            "NSMutableSet"
+        }
     }
     fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError> {
         let obj = as_object!(value)?;
@@ -241,7 +255,11 @@ impl Decodable for NSDictionary {
         classes[0] == "NSDictionary" || classes[0] == "NSMutableDictionary"
     }
     fn class(&self) -> &str {
-        if !self.is_mutable {"NSDictionary"} else {"NSMutableDictionary"}
+        if !self.is_mutable {
+            "NSDictionary"
+        } else {
+            "NSMutableDictionary"
+        }
     }
     fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError> {
         let obj = as_object!(value)?;
@@ -336,7 +354,11 @@ impl Decodable for NSData {
         classes[0] == "NSData" || classes[0] == "NSMutableData"
     }
     fn class(&self) -> &str {
-        if !self.is_mutable {"NSData"} else {"NSMutableData"}
+        if !self.is_mutable {
+            "NSData"
+        } else {
+            "NSMutableData"
+        }
     }
     fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
         let obj = as_object!(value)?;

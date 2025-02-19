@@ -5,7 +5,7 @@ pub use impls::*;
 use crate::{DeError, ValueRef};
 use std::any::TypeId;
 
-#[cfg(not(feature="debug_decodable"))]
+#[cfg(not(feature = "debug_decodable"))]
 /// A trait that can be implemented for a structure to be decodable.
 pub trait Decodable: Downcast {
     /// This method should return `true` if a structure that implements this method
@@ -27,10 +27,7 @@ pub trait Decodable: Downcast {
 
     #[doc(hidden)]
     /// This is an internal method that usually shouldn't be overwritten.
-    fn decode_as_any(
-        value: ValueRef,
-        types: &[ObjectType],
-    ) -> Result<Box<dyn Decodable>, DeError>
+    fn decode_as_any(value: ValueRef, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError>
     where
         Self: Sized + 'static,
     {
@@ -47,7 +44,7 @@ pub trait Decodable: Downcast {
     }
 }
 
-#[cfg(feature="debug_decodable")]
+#[cfg(feature = "debug_decodable")]
 /// A trait that can be implemented for a structure to be decodable.
 pub trait Decodable: Downcast + std::fmt::Debug {
     /// This method should return `true` if a structure that implements this method
@@ -69,10 +66,7 @@ pub trait Decodable: Downcast + std::fmt::Debug {
 
     #[doc(hidden)]
     /// This is an internal method that usually shouldn't be overwritten.
-    fn decode_as_any(
-        value: ValueRef,
-        types: &[ObjectType],
-    ) -> Result<Box<dyn Decodable>, DeError>
+    fn decode_as_any(value: ValueRef, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError>
     where
         Self: Sized + 'static,
     {
@@ -91,7 +85,7 @@ pub trait Decodable: Downcast + std::fmt::Debug {
 
 impl_downcast!(Decodable);
 
-#[cfg(not(feature="debug_decodable"))]
+#[cfg(not(feature = "debug_decodable"))]
 impl std::fmt::Debug for dyn Decodable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("Decodable: {} {{ ... }}", self.class()))
@@ -113,7 +107,11 @@ impl ObjectType {
     pub fn is_type_of(&self, classes: &[String]) -> bool {
         self.1(classes)
     }
-    pub fn decode(&self, obj: ValueRef, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError> {
+    pub fn decode(
+        &self,
+        obj: ValueRef,
+        types: &[ObjectType],
+    ) -> Result<Box<dyn Decodable>, DeError> {
         self.2(obj, types)
     }
 }
