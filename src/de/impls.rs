@@ -163,9 +163,7 @@ impl NSArray {
         let data = self.data;
         for value in &data {
             if value.downcast_ref::<T>().is_none() {
-                return Err(DeError::Message(
-                    "NSArray: Unable to downcast objects".to_string(),
-                ));
+                return Err(DeError::DowncastError);
             }
         }
         let mut objects: Vec<T> = Vec::with_capacity(data.len());
@@ -183,9 +181,7 @@ impl NSArray {
             return Err(DeError::Message("NSArray: Missing array key".to_string()));
         };
         let Some(downcasted) = self.data.get(index).unwrap().downcast_ref::<T>() else {
-            return Err(DeError::Message(
-                "NSArray: Unable to downcast objects".to_string(),
-            ));
+            return Err(DeError::DowncastError);
         };
         Ok(downcasted)
     }
@@ -301,9 +297,7 @@ impl NSDictionary {
         let data = self.data;
         for value in data.values() {
             if value.downcast_ref::<T>().is_none() {
-                return Err(DeError::Message(
-                    "NSDictionary: Unable to downcast objects".to_string(),
-                ));
+                return Err(DeError::DowncastError);
             }
         }
 
@@ -333,10 +327,9 @@ impl NSDictionary {
                 "NSDictionary: Missing hashmap key".to_string(),
             ));
         };
+
         let Some(downcasted) = self.data.get(key).unwrap().downcast_ref::<T>() else {
-            return Err(DeError::Message(
-                "NSDictionary: Unable to downcast objects".to_string(),
-            ));
+            return Err(DeError::DowncastError);
         };
         Ok(downcasted)
     }

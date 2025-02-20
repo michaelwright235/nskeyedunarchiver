@@ -17,6 +17,8 @@ pub enum Error {
 pub enum DeError {
     #[error("{0}")]
     Message(String),
+    #[error("Unable to downcast an object")]
+    DowncastError,
     #[error("Expected string")]
     ExpectedString,
     #[error("Expected integer")]
