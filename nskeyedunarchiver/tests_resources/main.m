@@ -1,6 +1,48 @@
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 
+@interface Note : NSObject <NSCoding> {
+  NSString *title;
+  NSString *author;
+  BOOL published;
+}
+
+@property (nonatomic, copy) NSString *title;
+@property (nonatomic, copy) NSString *author;
+@property (nonatomic) BOOL published;
+
+@end
+
+@implementation Note
+
+@synthesize title;
+@synthesize author;
+@synthesize published;
+
+- (void)dealloc {
+  [title release];
+  [author release];
+  [super dealloc];
+}
+
+- (id)initWithCoder:(NSCoder *)decoder {
+  if (self = [super init]) {
+    self.title = [decoder decodeObjectForKey:@"title"];
+    self.author = [decoder decodeObjectForKey:@"author"];
+    self.published = [decoder decodeBoolForKey:@"published"];
+  }
+  return self;
+}
+
+- (void)encodeWithCoder:(NSCoder *)encoder {
+  [encoder encodeObject:title forKey:@"title"];
+  [encoder encodeObject:author forKey:@"author"];
+  [encoder encodeBool:published forKey:@"published"];
+}
+
+@end
+
+
 void archiveData(id dict, NSString* name) {
     NSError* arcError = nil;
     NSData* data = [NSKeyedArchiver
@@ -18,6 +60,12 @@ void archiveData(id dict, NSString* name) {
     if(writingError != nil) {
         NSLog(@"Writing error: %@", [writingError localizedDescription]);
     }
+}
+
+void bundle(void) {
+    NSMutableAttributedString *string = [[NSMutableAttributedString alloc] initWithString:@"firstsecondthird"];
+    [string addAttribute:NSForegroundColorAttributeName value:[NSColor redColor] range:NSMakeRange(0,5)];
+    archiveData(string, @"NSMutableAttributedString");
 }
 
 void archiveNSAffineTransform(void) {
@@ -73,6 +121,8 @@ int main(int argc, const char * argv[]) {
         simpleArray();
         simpleDict();
         circularReference();
+        archiveNSAffineTransform();
+        bundle();
     }
     return 0;
 }

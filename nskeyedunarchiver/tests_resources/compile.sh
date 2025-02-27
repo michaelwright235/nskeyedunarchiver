@@ -1,2 +1,2 @@
 #!/bin/sh
-clang -Wall -framework Foundation main.m -o main && ./main
+clang -Wall -framework Foundation -framework AppKit main.m -o main && ./main
