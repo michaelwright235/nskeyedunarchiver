@@ -85,6 +85,12 @@ impl Object {
     /// Tries to decode a value as a data (a vector of bytes) with a given `key`.
     /// If it doesn't exist or has some other type a [DeError] is returned.
     pub fn decode_data(&self, key: &str) -> Result<&[u8], DeError> {
+        // In rare cases data may be encoded with a reference
+        if let Some(ObjectValue::Ref(obj_ref)) = self.fields.get(key) {
+            if let Some(d) = obj_ref.as_data() {
+                return Ok(d);
+            }
+        }
         Ok(get_key!(self, key, "data"))
     }
 
