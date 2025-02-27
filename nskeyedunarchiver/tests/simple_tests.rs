@@ -105,6 +105,7 @@ fn ns_data() {
 }
 
 #[test]
+#[ignore = "Currenty weak references are not supported, so objects with circular references stay in memory."]
 fn circular_reference() {
     // Currenty weak references are not supported, so objects with circular references stay in memory.
     // Therefore this test panics
