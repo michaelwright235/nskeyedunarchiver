@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 impl Decodable for String {
     fn is_type_of(classes: &[String]) -> bool {
-        classes[0] == "NSString"
+        classes[0] == "NSString" || classes[0] == "NSMutableString"
     }
     fn class(&self) -> &str {
         "NSString"
@@ -12,23 +12,32 @@ impl Decodable for String {
     fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
         // A string can be encoded as a plain String type
         if let Some(s) = value.as_string() {
-            Ok(s.to_string())
+            return Ok(s.to_string());
         }
-        // ... or as an Object with `NS.bytes` data (NIB Archives)
-        else if let Some(obj) = value.as_object() {
-            if !obj.contains_key("NS.bytes") {
-                return Err(DeError::ExpectedString);
-            }
-            let s = String::from_utf8(obj.decode_data("NS.bytes").unwrap().to_vec());
-            if let Err(e) = s {
+
+        // ... or as an Object with `NS.bytes` data or `"NS.string` string (NIB Archives)
+        if value.as_object().is_none() {
+            return Err(DeError::ExpectedString);
+        }
+
+        let obj = value.as_object().unwrap();
+        if !obj.contains_key("NS.bytes") && !obj.contains_key("NS.string") {
+            return Err(DeError::ExpectedString);
+        }
+        let s = if let Ok(data) = obj.decode_data("NS.bytes") {
+            let parsed = String::from_utf8(data.to_vec());
+            if let Err(e) = parsed {
                 return Err(DeError::Message(format!(
                     "Unable to parse a UTF-8 string: {e}"
                 )));
             }
-            Ok(s.unwrap())
+            parsed.unwrap()
+        } else if let Ok(data) = obj.decode_string("NS.string") {
+            data.into_owned()
         } else {
-            Err(DeError::ExpectedString)
-        }
+            return Err(DeError::ExpectedString);
+        };
+        Ok(s)
     }
 }
 

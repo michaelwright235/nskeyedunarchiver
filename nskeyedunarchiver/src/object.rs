@@ -106,18 +106,25 @@ impl Object {
     /// NSKeyedArchive objects don't contain plain strings, rather
     /// references to a string value. This function just makes it easy to access.
     pub fn decode_string(&self, key: &str) -> Result<Cow<str>, DeError> {
+
+        // In rare cases strings are encoded this way
+        if let Some(v) = self.fields.get("NS.string") {
+            if let ObjectValue::String(s) = v {
+                return Ok(Cow::Borrowed(&s));
+            }
+        }
         // As far as I can tell all strings inside of objects are
         // linked with UIDs
         let obj = get_key!(self, key, "ref");
 
         // In NIB Archives strings are encoded as objects
         if let Some(nsstring) = obj.as_object() {
-            if nsstring.class() != "NSString" {
+            if nsstring.class() != "NSString" && nsstring.class() != "NSMutableString" {
                 return Err(DeError::Message(format!(
                     "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
                     nsstring.class(),
                     self.class(),
-                    "NSString",
+                    "NSString or NSMutableString",
                     key
                 )));
             }
