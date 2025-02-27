@@ -41,6 +41,7 @@ pub(crate) enum ArchiveValueVariant {
     String(String),
     Integer(Integer),
     Real(f64),
+    Data(Vec<u8>),
     NullRef,
     Classes(Vec<String>),
     Object(Object),
@@ -100,6 +101,20 @@ impl ArchiveValue {
     /// Checks if a contained value is a float ([f64]).
     pub fn is_float(&self) -> bool {
         matches!(&self.value, ArchiveValueVariant::Real(_))
+    }
+
+    /// Returns [Some] with a reference to a contained [Integer] if a value represents it or [None] if it doesn't.
+    pub fn as_data(&self) -> Option<&[u8]> {
+        if let ArchiveValueVariant::Data(v) = &self.value {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    /// Checks if a contained value is an [Integer].
+    pub fn is_data(&self) -> bool {
+        matches!(&self.value, ArchiveValueVariant::Data(_))
     }
 
     /// Returns [Some] with a reference to a contained [Object] if a value represents it or [None] if it doesn't.
@@ -215,6 +230,8 @@ impl NSKeyedUnarchiver {
     }
 
     /// Returns a [HashMap] created from the `$top` value.
+    ///
+    /// If there's only one value inside of `$top`, use `get("root")` to get it.
     pub fn top(&self) -> HashMap<String, ValueRef> {
         let mut map = HashMap::with_capacity(self.top.len());
         for (key, value) in &self.top {
@@ -292,6 +309,9 @@ impl NSKeyedUnarchiver {
                 ArchiveValue::new(ArchiveValueVariant::Integer(i), UniqueId::new(index))
             } else if let Some(f) = obj.as_real() {
                 ArchiveValue::new(ArchiveValueVariant::Real(f), UniqueId::new(index))
+            } else if let Some(f) = obj.as_data() {
+                let d = obj.into_data().unwrap();
+                ArchiveValue::new(ArchiveValueVariant::Data(d), UniqueId::new(index))
             } else if let Some(dict) = obj.as_dictionary() {
                 if Self::is_container(&obj) {
                     ArchiveValue::new(
@@ -326,9 +346,11 @@ impl NSKeyedUnarchiver {
                         return Err(Error::IncorrectFormat("Incorrect Classes object".into()));
                     }
                 } else {
+                    //println!("{:?}", obj);
                     return Err(Error::IncorrectFormat("Unexpected object type".into()));
                 }
             } else {
+                println!("{:?}", obj);
                 return Err(Error::IncorrectFormat("Unexpected object type".into()));
             };
             decoded_objects.push(Rc::new(decoded_obj));
