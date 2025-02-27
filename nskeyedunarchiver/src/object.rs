@@ -25,7 +25,7 @@ macro_rules! get_key {
         }
         if obj.is_none() {
             return Err(DeError::Message(format!(
-                "{1}: Incorrect value type of '{0}' for key '{3}'. Expected '{2}'",
+                "{1}: Incorrect value type for key '{3}'. Expected '{0}', found '{2}'",
                 $typ,
                 $self.class(),
                 raw_object.as_plain_type(),
@@ -47,7 +47,7 @@ enum ObjectValue {
     Ref(ValueRef),
     NullRef,
 
-    // Only used when creataing an object
+    // Only used when creating an object
     RawRefArray(Vec<u64>), // vector of uids
     RawRef(u64),           // uid
 }
