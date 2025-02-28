@@ -1,3 +1,6 @@
+#[cfg(feature = "derive")]
+mod derive_impl;
+
 mod impls;
 use downcast_rs::{impl_downcast, Downcast};
 pub use impls::*;
@@ -42,6 +45,18 @@ pub trait Decodable: Downcast {
     {
         ObjectType::new::<Self>()
     }
+
+    #[doc(hidden)]
+    fn get_from_object(
+        obj: &crate::Object,
+        key: &str,
+        types: &[ObjectType],
+    ) -> Result<Self, DeError>
+    where
+        Self: Sized + 'static,
+    {
+        obj.decode_object_as::<Self>(key, types)
+    }
 }
 
 #[cfg(feature = "debug_decodable")]
@@ -80,6 +95,18 @@ pub trait Decodable: Downcast + std::fmt::Debug {
         Self: Sized + 'static,
     {
         ObjectType::new::<Self>()
+    }
+
+    #[doc(hidden)]
+    fn get_from_object(
+        obj: &crate::Object,
+        key: &str,
+        types: &[ObjectType],
+    ) -> Result<Self, DeError>
+    where
+        Self: Sized + 'static,
+    {
+        obj.decode_object_as::<Self>(key, types)
     }
 }
 

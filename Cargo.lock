@@ -54,6 +54,11 @@ checksum = "d75a2a4b1b190afb6f5425f10f6a8f959d2ea0b9c2b1d79553551850539e4674"
 [[package]]
 name = "keyed_archive_derive"
 version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "libc"
@@ -78,6 +83,7 @@ name = "nskeyedunarchiver"
 version = "0.1.0"
 dependencies = [
  "downcast-rs",
+ "keyed_archive_derive",
  "log",
  "paste",
  "plist",

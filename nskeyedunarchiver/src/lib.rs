@@ -8,6 +8,9 @@ pub use plist::Integer;
 use plist::{Dictionary as PlistDictionary, Value as PlistValue};
 use std::{collections::HashMap, rc::Rc};
 
+#[cfg(feature = "derive")]
+pub use keyed_archive_derive::Decodable;
+
 pub(crate) const ARCHIVER: &str = "NSKeyedArchiver";
 pub(crate) const ARCHIVER_VERSION: u64 = 100000;
 
