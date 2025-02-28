@@ -1,175 +1,241 @@
-//! These Decodable impls only exit to make the code simpler by calling `get_from_object`
-//! with a unified trait.
-//! Actually it's logically incorrect because we implement Decodable only for archive objects.
-
+use plist::Integer;
 use super::{Decodable, NSArray, ObjectType};
 use crate::{DeError, Object, UniqueId, ValueRef};
 
-impl Decodable for bool {
-    fn get_from_object(obj: &Object, key: &str, _types: &[ObjectType]) -> Result<Self, DeError>
+pub trait ObjectMember {
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
     where
-        Self: Sized,
-    {
+        Self: Sized + 'static;
+
+    fn as_object_type() -> Option<ObjectType>
+    where
+        Self: Sized+ 'static;
+}
+
+impl ObjectMember for String {
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        _types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static {
+        obj.decode_string(key).map(|v| v.into_owned())
+    }
+
+    fn as_object_type() -> Option<ObjectType>
+    where
+        Self: Sized+ 'static {
+        Some(ObjectType::new::<Self>())
+    }
+}
+
+impl ObjectMember for f64 {
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        _types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static {
+        obj.decode_float(key).copied()
+    }
+    fn as_object_type() -> Option<ObjectType>
+    where
+        Self: Sized+ 'static {
+        Some(ObjectType::new::<Self>())
+    }
+}
+
+impl ObjectMember for u64 {
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        _types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static {
+        obj.decode_integer(key).and_then(|v| {
+            v.as_unsigned().ok_or(DeError::Message(
+                "Unable to represent an integer as u64".into(),
+            ))
+        })
+    }
+    fn as_object_type() -> Option<ObjectType>
+    where
+        Self: Sized+ 'static {
+        None
+    }
+}
+
+impl ObjectMember for i64 {
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        _types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static {
+        obj.decode_integer(key).and_then(|v| {
+            v.as_signed().ok_or(DeError::Message(
+                "Unable to represent an integer as i64".into(),
+            ))
+        })
+    }
+    fn as_object_type() -> Option<ObjectType>
+    where
+        Self: Sized+ 'static {
+        None
+    }
+}
+
+impl ObjectMember for Integer {
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        _types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static {
+        obj.decode_integer(key).copied()
+    }
+    fn as_object_type() -> Option<ObjectType>
+    where
+        Self: Sized+ 'static {
+        Some(ObjectType::new::<Self>())
+    }
+}
+
+macro_rules! impl_object_member {
+    ($($t:ty),+) => {
+        $(
+            impl ObjectMember for $t {
+                fn get_from_object(
+                    obj: &Object,
+                    key: &str,
+                    types: &[ObjectType],
+                ) -> std::result::Result<Self, DeError>
+                where
+                    Self: Sized + 'static {
+                        obj.decode_object_as::<Self>(key, types)
+                }
+                fn as_object_type() -> Option<ObjectType>
+                where
+                    Self: Sized+ 'static {
+                    Some(ObjectType::new::<Self>())
+                }
+            }
+        )+
+    };
+}
+
+impl_object_member!(super::NSArray, super::NSSet, super::NSDictionary, super::NSData);
+
+impl ObjectMember for bool {
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        _types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static {
         obj.decode_bool(key)
     }
-
-    fn is_type_of(_classes: &[String]) -> bool
+    fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized,
-    {
-        false
-    }
-
-    fn class(&self) -> &str {
-        ""
-    }
-
-    fn decode(_value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError>
-    where
-        Self: Sized,
-    {
-        Err(DeError::Message("Don't use it this way!".into()))
+        Self: Sized+ 'static {
+        None
     }
 }
 
-impl Decodable for Vec<u8> {
-    fn get_from_object(obj: &Object, key: &str, _types: &[ObjectType]) -> Result<Self, DeError>
+impl ObjectMember for Vec<u8> {
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        _types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
     where
-        Self: Sized,
-    {
+        Self: Sized + 'static {
         obj.decode_data(key).map(|v| v.to_vec())
     }
-
-    fn is_type_of(_classes: &[String]) -> bool
+    fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized,
-    {
-        false
-    }
-
-    fn class(&self) -> &str {
-        ""
-    }
-
-    fn decode(_value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError>
-    where
-        Self: Sized,
-    {
-        Err(DeError::Message("Don't use it this way!".into()))
+        Self: Sized+ 'static {
+        None
     }
 }
 
-impl<T> Decodable for Vec<T>
-where
-    T: Decodable,
-{
-    fn get_from_object(obj: &Object, key: &str, types: &[ObjectType]) -> Result<Self, DeError>
+impl<T: Decodable> ObjectMember for Vec<T> {
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
     where
-        Self: Sized,
-    {
+        Self: Sized + 'static {
         let arr = NSArray::get_from_object(obj, key, types)?;
         arr.try_into_objects::<T>()
     }
-
-    fn is_type_of(_classes: &[String]) -> bool
+    fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized,
-    {
-        false
-    }
-
-    fn class(&self) -> &str {
-        ""
-    }
-
-    fn decode(_value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError>
-    where
-        Self: Sized,
-    {
-        Err(DeError::Message("Don't use it this way!".into()))
+        Self: Sized+ 'static {
+        None
     }
 }
 
-impl Decodable for ValueRef {
-    fn get_from_object(obj: &Object, key: &str, _types: &[ObjectType]) -> Result<Self, DeError>
+
+
+impl ObjectMember for ValueRef {
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        _types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
     where
-        Self: Sized,
-    {
+        Self: Sized + 'static {
         obj.decode_object(key)
     }
-
-    fn is_type_of(_classes: &[String]) -> bool
+    fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized,
-    {
-        false
-    }
-
-    fn class(&self) -> &str {
-        ""
-    }
-
-    fn decode(_value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError>
-    where
-        Self: Sized,
-    {
-        Err(DeError::Message("Don't use it this way!".into()))
+        Self: Sized+ 'static {
+        None
     }
 }
 
-impl Decodable for UniqueId {
-    fn get_from_object(obj: &Object, key: &str, _types: &[ObjectType]) -> Result<Self, DeError>
+impl ObjectMember for UniqueId {
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        _types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
     where
-        Self: Sized,
-    {
+        Self: Sized + 'static {
         obj.decode_object(key).map(|v| v.unique_id)
     }
-
-    fn is_type_of(_classes: &[String]) -> bool
+    fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized,
-    {
-        false
-    }
-
-    fn class(&self) -> &str {
-        ""
-    }
-
-    fn decode(_value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError>
-    where
-        Self: Sized,
-    {
-        Err(DeError::Message("Don't use it this way!".into()))
+        Self: Sized+ 'static {
+        None
     }
 }
 
-impl<T> Decodable for Option<T>
-where
-    T: Decodable,
-{
-    fn get_from_object(obj: &Object, key: &str, types: &[ObjectType]) -> Result<Self, DeError>
+impl<T: ObjectMember> ObjectMember for Option<T> {
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
     where
-        Self: Sized,
-    {
+        Self: Sized + 'static {
         Ok(T::get_from_object(obj, key, types).ok())
     }
-
-    fn is_type_of(_classes: &[String]) -> bool
+    fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized,
-    {
-        false
-    }
-
-    fn class(&self) -> &str {
-        ""
-    }
-
-    fn decode(_value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError>
-    where
-        Self: Sized,
-    {
-        Err(DeError::Message("Don't use it this way!".into()))
+        Self: Sized+ 'static {
+        None
     }
 }

@@ -1,5 +1,5 @@
 use super::{value_ref_to_any, Decodable, ObjectType};
-use crate::{as_object, DeError, Integer, Object, ValueRef};
+use crate::{as_object, DeError, Integer, ValueRef};
 use std::collections::HashMap;
 
 impl Decodable for String {
@@ -39,10 +39,6 @@ impl Decodable for String {
         };
         Ok(s)
     }
-
-    fn get_from_object(obj: &Object, key: &str, _types: &[ObjectType]) -> Result<Self, DeError> {
-        obj.decode_string(key).map(|v| v.into_owned())
-    }
 }
 
 impl Decodable for f64 {
@@ -58,58 +54,6 @@ impl Decodable for f64 {
         };
         Ok(*float)
     }
-
-    fn get_from_object(obj: &Object, key: &str, _types: &[ObjectType]) -> Result<Self, DeError> {
-        obj.decode_float(key).copied()
-    }
-}
-
-impl Decodable for u64 {
-    fn is_type_of(_classes: &[String]) -> bool {
-        false
-    }
-    fn class(&self) -> &str {
-        ""
-    }
-    fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
-        let int = Integer::decode(value, &[])?;
-        let unsinged = int.as_unsigned().ok_or(DeError::Message(
-            "Unable to represent an integer as u64".into(),
-        ))?;
-        Ok(unsinged)
-    }
-
-    fn get_from_object(obj: &Object, key: &str, _types: &[ObjectType]) -> Result<Self, DeError> {
-        obj.decode_integer(key).and_then(|v| {
-            v.as_unsigned().ok_or(DeError::Message(
-                "Unable to represent an integer as u64".into(),
-            ))
-        })
-    }
-}
-
-impl Decodable for i64 {
-    fn is_type_of(_classes: &[String]) -> bool {
-        false
-    }
-    fn class(&self) -> &str {
-        ""
-    }
-    fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
-        let int = Integer::decode(value, &[])?;
-        let singed = int.as_signed().ok_or(DeError::Message(
-            "Unable to represent an integer as i64".into(),
-        ))?;
-        Ok(singed)
-    }
-
-    fn get_from_object(obj: &Object, key: &str, _types: &[ObjectType]) -> Result<Self, DeError> {
-        obj.decode_integer(key).and_then(|v| {
-            v.as_signed().ok_or(DeError::Message(
-                "Unable to represent an integer as i64".into(),
-            ))
-        })
-    }
 }
 
 impl Decodable for Integer {
@@ -124,10 +68,6 @@ impl Decodable for Integer {
             return Err(DeError::ExpectedInteger);
         };
         Ok(*int)
-    }
-
-    fn get_from_object(obj: &Object, key: &str, _types: &[ObjectType]) -> Result<Self, DeError> {
-        obj.decode_integer(key).copied()
     }
 }
 

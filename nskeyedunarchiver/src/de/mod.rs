@@ -1,5 +1,7 @@
 #[cfg(feature = "derive")]
 mod derive_impl;
+#[cfg(feature = "derive")]
+pub use derive_impl::ObjectMember;
 
 mod impls;
 use downcast_rs::{impl_downcast, Downcast};
@@ -45,18 +47,6 @@ pub trait Decodable: Downcast {
     {
         ObjectType::new::<Self>()
     }
-
-    #[doc(hidden)]
-    fn get_from_object(
-        obj: &crate::Object,
-        key: &str,
-        types: &[ObjectType],
-    ) -> Result<Self, DeError>
-    where
-        Self: Sized + 'static,
-    {
-        obj.decode_object_as::<Self>(key, types)
-    }
 }
 
 #[cfg(feature = "debug_decodable")]
@@ -95,18 +85,6 @@ pub trait Decodable: Downcast + std::fmt::Debug {
         Self: Sized + 'static,
     {
         ObjectType::new::<Self>()
-    }
-
-    #[doc(hidden)]
-    fn get_from_object(
-        obj: &crate::Object,
-        key: &str,
-        types: &[ObjectType],
-    ) -> Result<Self, DeError>
-    where
-        Self: Sized + 'static,
-    {
-        obj.decode_object_as::<Self>(key, types)
     }
 }
 
@@ -151,12 +129,12 @@ macro_rules! object_types {
     ($($name:ident),*) => {{
         use $crate::de::Decodable;
         Vec::from([
-            $crate::de::NSArray::as_object_type(),
-            $crate::de::NSSet::as_object_type(),
-            $crate::de::NSDictionary::as_object_type(),
-            $crate::de::NSData::as_object_type(),
+            <$crate::de::NSArray as Decodable>::as_object_type(),
+            <$crate::de::NSSet as Decodable>::as_object_type(),
+            <$crate::de::NSDictionary as Decodable>::as_object_type(),
+            <$crate::de::NSData as Decodable>::as_object_type(),
             $(
-                $name::as_object_type()
+                <$name as Decodable>::as_object_type()
             ),*
         ])
     }};

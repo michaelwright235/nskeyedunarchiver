@@ -110,6 +110,10 @@ fn decodable_impl(input: DeriveInput) -> Result<TokenStream> {
     let mut object_types = Vec::with_capacity(named_fields.named.len());
     for f in &named_fields.named {
         // hangle things like Vec<u8> (brackets like <u8>)
+        let field_attrs = MacroAttributes::try_from(f.attrs.as_slice())?;
+        if field_attrs.bool_attrs.contains(&"skip".to_string()) {
+            continue;
+        }
         if let syn::Type::Path(b) = &f.ty {
             let last_segment = b.path.segments.last().unwrap();
             let last_segment_ident = &last_segment.ident;
@@ -127,11 +131,15 @@ fn decodable_impl(input: DeriveInput) -> Result<TokenStream> {
         object_types.push(f.ty.to_token_stream());
     }
     let object_types_macro = quote! {
-        Vec::from([
+        {
+            let mut v: Vec<ObjectType> = vec![];
             #(
-                #object_types::as_object_type()
-            ),*
-        ])
+                if let Some(t) = <#object_types as ObjectMember>::as_object_type() {
+                    v.push(t);
+                }
+            )*
+            v
+        }
     };
     //eprintln!("{object_types_macro}");
 
@@ -141,12 +149,12 @@ fn decodable_impl(input: DeriveInput) -> Result<TokenStream> {
         let field_type = &f.ty;
         let mut found_skip = false;
 
-        let struct_attrs = MacroAttributes::try_from(f.attrs.as_slice())?;
+        let field_attrs = MacroAttributes::try_from(f.attrs.as_slice())?;
 
-        if let Some(new_name) = struct_attrs.str_attrs.get("rename") {
+        if let Some(new_name) = field_attrs.str_attrs.get("rename") {
             field_name = new_name.to_string();
         }
-        if struct_attrs.bool_attrs.contains(&"skip".to_string()) {
+        if field_attrs.bool_attrs.contains(&"skip".to_string()) {
             found_skip = true;
         }
 
@@ -188,7 +196,7 @@ fn decodable_impl(input: DeriveInput) -> Result<TokenStream> {
             fn class(&self) -> &str { #struct_name }
 
             fn decode(value: nskeyedunarchiver::ValueRef, types: &[nskeyedunarchiver::de::ObjectType]) -> Result<Self, nskeyedunarchiver::DeError> {
-                use nskeyedunarchiver::de::Decodable;
+                use nskeyedunarchiver::de::ObjectMember;
                 let value = nskeyedunarchiver::as_object!(value)?;
                 // One don't need to pass all types from the struct, only ones that don't appear there explicitly
                 let mut extended_types = #object_types_macro;
@@ -198,6 +206,23 @@ fn decodable_impl(input: DeriveInput) -> Result<TokenStream> {
                         #(#field_inits),*
                     }
                 )
+            }
+        }
+
+        impl nskeyedunarchiver::de::ObjectMember for #struct_ident {
+            fn get_from_object(
+                obj: &Object,
+                key: &str,
+                types: &[ObjectType],
+            ) -> std::result::Result<Self, DeError>
+            where
+                Self: Sized + 'static {
+                    obj.decode_object_as::<Self>(key, types)
+            }
+            fn as_object_type() -> Option<ObjectType>
+            where
+                Self: Sized+ 'static {
+                Some(ObjectType::new::<Self>())
             }
         }
     };
