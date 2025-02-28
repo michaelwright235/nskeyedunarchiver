@@ -40,7 +40,7 @@ pub trait Decodable: Downcast {
     where
         Self: Sized + 'static,
     {
-        ObjectType::new(TypeId::of::<Self>(), Self::is_type_of, Self::decode_as_any)
+        ObjectType::new::<Self>()
     }
 }
 
@@ -79,7 +79,7 @@ pub trait Decodable: Downcast + std::fmt::Debug {
     where
         Self: Sized + 'static,
     {
-        ObjectType::new(TypeId::of::<Self>(), Self::is_type_of, Self::decode_as_any)
+        ObjectType::new::<Self>()
     }
 }
 
@@ -92,27 +92,30 @@ impl std::fmt::Debug for dyn Decodable {
     }
 }
 
-type IsTypeOfFn = fn(classes: &[String]) -> bool;
-type DecodeAsAnyFn = fn(obj: ValueRef, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError>;
-
 #[doc(hidden)]
-pub struct ObjectType(TypeId, IsTypeOfFn, DecodeAsAnyFn);
+#[derive(PartialEq, Clone, Debug)]
+pub struct ObjectType {
+    type_id: TypeId,
+    is_type_of_fn: fn(classes: &[String]) -> bool,
+    decode_as_any_fn: fn(obj: ValueRef, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError>,
+}
+
 impl ObjectType {
-    pub fn new(t: TypeId, c: IsTypeOfFn, d: DecodeAsAnyFn) -> Self {
-        Self(t, c, d)
+    pub fn new<T: Decodable>() -> Self {
+        Self {
+            type_id: TypeId::of::<T>(),
+            is_type_of_fn: T::is_type_of,
+            decode_as_any_fn: T::decode_as_any
+        }
     }
     pub fn type_id(&self) -> TypeId {
-        self.0
+        self.type_id
     }
     pub fn is_type_of(&self, classes: &[String]) -> bool {
-        self.1(classes)
+        (self.is_type_of_fn)(classes)
     }
-    pub fn decode(
-        &self,
-        obj: ValueRef,
-        types: &[ObjectType],
-    ) -> Result<Box<dyn Decodable>, DeError> {
-        self.2(obj, types)
+    pub fn decode_as_any(&self, obj: ValueRef, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError> {
+        (self.decode_as_any_fn)(obj, types)
     }
 }
 
@@ -161,7 +164,7 @@ pub fn value_ref_to_any(
     let mut result = None;
     for typ in types {
         if typ.is_type_of(classes) {
-            result = Some(typ.decode(value_ref.clone(), types));
+            result = Some(typ.decode_as_any(value_ref.clone(), types));
         }
     }
     match result {
