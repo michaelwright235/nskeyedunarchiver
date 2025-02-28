@@ -112,12 +112,9 @@ impl Object {
     /// NSKeyedArchive objects don't contain plain strings, rather
     /// references to a string value. This function just makes it easy to access.
     pub fn decode_string(&self, key: &str) -> Result<Cow<str>, DeError> {
-
         // In rare cases strings are encoded this way
-        if let Some(v) = self.fields.get("NS.string") {
-            if let ObjectValue::String(s) = v {
-                return Ok(Cow::Borrowed(&s));
-            }
+        if let Some(ObjectValue::String(s)) = self.fields.get("NS.string") {
+            return Ok(Cow::Borrowed(s));
         }
         // As far as I can tell all strings inside of objects are
         // linked with UIDs
@@ -159,8 +156,8 @@ impl Object {
     /// If it doesn't exist or has some other type a [DeError] is returned.
     ///
     /// One may rarely use this method, look at [decode_object_as] method instead.
-    pub fn decode_object(&self, key: &str) -> Result<&ValueRef, DeError> {
-        let obj = get_key!(self, key, "ref");
+    pub fn decode_object(&self, key: &str) -> Result<ValueRef, DeError> {
+        let obj = get_key!(self, key, "ref").clone();
         Ok(obj)
     }
 
@@ -296,7 +293,7 @@ impl Object {
                 for val in obj.into_array().unwrap() {
                     if val.as_uid().is_none() {
                         return Err(Error::IncorrectFormat(format!(
-                            "Array (uid: {classes_uid}) should countain only object references"
+                            "Array (uid: {classes_uid}) should contain only object references"
                         )));
                     } else {
                         arr_of_uids.push(val.into_uid().unwrap().get());

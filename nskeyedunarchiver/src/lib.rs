@@ -309,9 +309,8 @@ impl NSKeyedUnarchiver {
                 ArchiveValue::new(ArchiveValueVariant::Integer(i), UniqueId::new(index))
             } else if let Some(f) = obj.as_real() {
                 ArchiveValue::new(ArchiveValueVariant::Real(f), UniqueId::new(index))
-            } else if let Some(f) = obj.as_data() {
-                let d = obj.into_data().unwrap();
-                ArchiveValue::new(ArchiveValueVariant::Data(d), UniqueId::new(index))
+            } else if let Some(d) = obj.as_data() {
+                ArchiveValue::new(ArchiveValueVariant::Data(d.to_vec()), UniqueId::new(index))
             } else if let Some(dict) = obj.as_dictionary() {
                 if Self::is_container(&obj) {
                     ArchiveValue::new(
