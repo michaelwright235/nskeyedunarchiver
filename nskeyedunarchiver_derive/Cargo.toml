@@ -1,5 +1,5 @@
 [package]
-name = "keyed_archive_derive"
+name = "nskeyedunarchiver_derive"
 version = "0.1.0"
 edition = "2021"
 

@@ -3,5 +3,5 @@ resolver = "2"
 
 members = [
     "nskeyedunarchiver",
-    "keyed_archive_derive",
+    "nskeyedunarchiver_derive",
 ]

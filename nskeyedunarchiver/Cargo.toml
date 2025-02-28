@@ -7,14 +7,14 @@ edition = "2021"
 default = ["derive"]
 # Makes `Debug` a super trait of Decodable. Useful for analyzing data.
 debug_decodable = []
-derive = ["dep:keyed_archive_derive"]
+derive = ["dep:nskeyedunarchiver_derive"]
 
 [dependencies]
 downcast-rs = "2.0"
 paste = "1.0"
 plist = "1.7"
 thiserror = "2.0"
-keyed_archive_derive = { path="../keyed_archive_derive", optional = true }
+nskeyedunarchiver_derive = { path="../nskeyedunarchiver_derive", optional = true }
 
 [dev-dependencies]
 simplelog = "0.12"

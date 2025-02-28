@@ -1,7 +1,7 @@
 #![allow(unused_variables, dead_code, non_snake_case)]
 #![cfg(feature = "derive")]
 
-use keyed_archive_derive::Decodable;
+use nskeyedunarchiver_derive::Decodable;
 use nskeyedunarchiver::{
     de::{Decodable, NSData, NSDictionary},
     object_types, NSKeyedUnarchiver};
