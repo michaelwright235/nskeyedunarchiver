@@ -53,7 +53,7 @@ struct Note {
     published: bool,
     array: Vec<ArrayMember>,
     #[decodable(unhandled)]
-    unhandeled: HashMap<String, ValueRef>,
+    unhandled: HashMap<String, ValueRef>,
 }
 
 #[test]
@@ -71,7 +71,7 @@ fn note() {
             ArrayMember::Integer(42),
             ArrayMember::Boolean(true),
         ],
-        unhandeled: HashMap::new(),
+        unhandled: HashMap::new(),
     };
     assert_eq!(note, decoded);
 }
