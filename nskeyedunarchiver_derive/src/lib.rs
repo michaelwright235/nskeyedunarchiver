@@ -10,6 +10,7 @@ use syn::{spanned::Spanned, Error, Result};
 const BOOL_ATTRS: [&str; 1] = ["skip"];
 const STR_ATTRS: [&str; 1] = ["rename"];
 
+/// Parses all attributes that come from #[decodable(...)]
 #[derive(Debug, Default)]
 struct MacroAttributes {
     str_attrs: HashMap<String, String>,
@@ -20,26 +21,38 @@ impl TryFrom<&[syn::Attribute]> for MacroAttributes {
     type Error = syn::Error;
 
     fn try_from(value: &[syn::Attribute]) -> std::result::Result<Self, Self::Error> {
+        // There may be other attributes, we find "decodable"
         let mut decodable_attr = None;
         for attr in value {
             if attr.path().get_ident().unwrap() == "decodable" {
                 decodable_attr = Some(attr);
             }
         }
+
+        // If we didn't find one, return an empty struct
         let Some(decodable_attr) = decodable_attr else {
                 return Ok(Self::default());
         };
+
         let syn::Meta::List(list) = &decodable_attr.meta else {
             return Err(Error::new(decodable_attr.path().span(), "Unable to parse attributes"));
         };
+
+        // Make a plain string out of an attribute contents
         let raw_attr = list.tokens.to_string();
         let mut str_attrs = HashMap::new();
         let mut bool_attrs = Vec::new();
+
+        // Split it with a comma "," and iterate
         for param in raw_attr.split(",") {
+
+            // Split a pair with "=" (name and contents)
             let mut pair: Vec<&str> = param.split("=").collect();
             for s in &mut pair {
                 *s = s.trim();
             }
+
+            // There may be bool attributes (like `skip`, without "="), so we handle it
             if pair.len() == 1 {
                 if bool_attrs.contains(&pair[0].to_string()) {
                     return Err(Error::new(decodable_attr.path().span(), "An attribute cannot be set more than once"));
@@ -50,9 +63,12 @@ impl TryFrom<&[syn::Attribute]> for MacroAttributes {
                 bool_attrs.push(pair[0].to_string());
                 continue;
             }
+
+            // Handle cases like `rename = = "smh"`
             if pair.len() != 2 {
-                return Err(Error::new(decodable_attr.path().span(), "Unknown attribute"));
+                return Err(Error::new(decodable_attr.path().span(), "Incorrect attribute"));
             }
+
             let attr_name = pair[0];
             let attr_value = pair[1];
             if !attr_value.starts_with("\"") || !attr_value.ends_with("\"") {
@@ -77,13 +93,14 @@ impl TryFrom<&[syn::Attribute]> for MacroAttributes {
     }
 }
 
+// Implements Dedocable and ObjectMember for structs
 fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
     let syn::Data::Struct(cur_struct) = &input.data else {
         unreachable!()
     };
     let syn::Fields::Named(named_fields) = &cur_struct.fields else {
         return Err(Error::new(
-            input.span(),
+            cur_struct.fields.span().clone(),
             "Only structs with named fields are supported",
         ));
     };
@@ -103,6 +120,8 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
     let mut field_inits: Vec<proc_macro2::TokenStream> =
         Vec::with_capacity(named_fields.named.len());
 
+    // First interator over fields. We find all their types to build a Vec<ObjectType>
+    // to pass it to `get_from_object` methods
     let mut object_types = Vec::with_capacity(named_fields.named.len());
     for f in &named_fields.named {
         // hangle things like Vec<u8> (brackets like <u8>)
@@ -137,8 +156,10 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
             v
         }
     };
-    //eprintln!("{object_types_macro}");
 
+    // Second iterator over fields. Now we build field initializators:
+    // fieldName: Type::get_from_object(value, "field_name", &extended_types)
+    // We put them all inside Self {...}
     for f in &named_fields.named {
         let mut field_name = f.ident.as_ref().unwrap().to_string();
         let field_ident = format_ident!("{field_name}");
@@ -164,7 +185,6 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
 
         // hangle things like Vec<u8> (brackets like <u8>)
         if let syn::Type::Path(b) = field_type {
-            //eprintln!("{:?}", b);
             let last_segment = b.path.segments.last().unwrap();
             let last_segment_ident = &last_segment.ident;
             if let syn::PathArguments::AngleBracketed(args) = &last_segment.arguments {
@@ -226,12 +246,12 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
     Ok(TokenStream::from(expanded))
 }
 
+// Implements Dedocable for enums
 fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
     let syn::Data::Enum(cur_enum) = &input.data else {
         unreachable!()
     };
     let enum_ident = &input.ident;
-    let mut enum_name = enum_ident.to_string();
 
     let enum_attrs = MacroAttributes::try_from(input.attrs.as_slice())?;
     if enum_attrs.bool_attrs.len() != 0 || enum_attrs.str_attrs.len() != 0 {
@@ -242,21 +262,28 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
     }
 
     let variants = &cur_enum.variants;
-
     let mut variants_inits: Vec<proc_macro2::TokenStream> =
     Vec::with_capacity(variants.len());
-    let mut object_types = Vec::with_capacity(variants.len());
 
+    // First interator over variants. We find all their types to build a Vec<ObjectType>
+    // to pass it to `decode` methods
+    let mut object_types = Vec::with_capacity(variants.len());
     for v in variants {
         // hangle things like Vec<u8> (brackets like <u8>)
         let field_attrs = MacroAttributes::try_from(v.attrs.as_slice())?;
         if field_attrs.bool_attrs.contains(&"skip".to_string()) {
             continue;
         }
-        eprintln!("{v:?}");
+        if field_attrs.str_attrs.len() != 0 {
+            return Err(Error::new(
+                v.attrs[0].path().span().clone(),
+                "Only `skip` attribute is valid for enum variants",
+            ));
+        }
+
         if *&v.fields.len() != 1 {
             return Err(Error::new(
-                input.span(),
+                v.fields.span().clone(),
                 "An enum variant can only have one field",
             ));
         }
@@ -278,6 +305,11 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
         object_types.push(field.ty.to_token_stream());
     }
 
+    // Second iterator over variant. We build if statements that check if
+    // an underlying object is decodable into a type of each variant.
+    // if let Ok(v) = Type::decode(value.clone(), types) {
+    //    return Ok(Self::Variant(v));
+    // }
     for v in variants {
         let field_ident = &v.ident;
         let field_type = &v.fields.iter().next().unwrap().ty;
@@ -286,7 +318,7 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
 
         if field_attrs.str_attrs.len() != 0 {
             return Err(Error::new(
-                input.span(),
+                v.attrs[0].path().span().clone(),
                 "This attribute is not supported for enum variants",
             ));
         }
@@ -352,12 +384,13 @@ fn decodable_impl(input: DeriveInput) -> Result<TokenStream> {
         syn::Data::Struct(_) => decodable_struct(&input),
         syn::Data::Enum(_) => decodable_enum(&input),
         _ => Err(Error::new(
-            input.span(),
+            input.ident.span().clone(),
             "Only structs and enums are supported",
         ))
     }
 }
 
+/// Derive macro generating an impl of the trait `Decodable`.
 #[proc_macro_derive(Decodable, attributes(decodable))]
 pub fn decodable(input: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree
