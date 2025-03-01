@@ -36,7 +36,7 @@ macro_rules! get_key {
     }};
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum ObjectValue {
     String(String),
     Integer(Integer),
@@ -68,7 +68,7 @@ impl ObjectValue {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Object {
     classes: Option<ValueRef>,
     classes_uid: u64,

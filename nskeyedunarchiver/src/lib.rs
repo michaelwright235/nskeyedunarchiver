@@ -39,7 +39,7 @@ impl UniqueId {
 }
 
 /// Possible values inside of $objects
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub(crate) enum ArchiveValueVariant {
     Boolean(bool),
     Classes(Vec<String>),
@@ -53,9 +53,9 @@ pub(crate) enum ArchiveValueVariant {
 
 /// Represents a single value contained inside of an archive.
 ///
-/// The possible values are: [String], [Integer], [f64],
+/// The possible values are: [String], [Integer], [f64], Vec<u8>, [bool],
 /// `NullRef` (a `$null` reference ), `Classes` (an array of class strings), [Object].
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ArchiveValue {
     value: ArchiveValueVariant,
     unique_id: UniqueId,
