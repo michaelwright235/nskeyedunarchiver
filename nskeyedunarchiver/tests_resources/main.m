@@ -5,11 +5,13 @@
   NSString *title;
   NSString *author;
   BOOL published;
+  NSArray *array;
 }
 
 @property (nonatomic, copy) NSString *title;
 @property (nonatomic, copy) NSString *author;
 @property (nonatomic) BOOL published;
+@property (nonatomic, copy) NSArray *array;
 
 @end
 
@@ -18,6 +20,7 @@
 @synthesize title;
 @synthesize author;
 @synthesize published;
+@synthesize array;
 
 - (void)dealloc {
   [title release];
@@ -30,6 +33,7 @@
     self.title = [decoder decodeObjectForKey:@"title"];
     self.author = [decoder decodeObjectForKey:@"author"];
     self.published = [decoder decodeBoolForKey:@"published"];
+    self.array = [decoder decodeObjectForKey:@"array"];
   }
   return self;
 }
@@ -38,6 +42,7 @@
   [encoder encodeObject:title forKey:@"title"];
   [encoder encodeObject:author forKey:@"author"];
   [encoder encodeBool:published forKey:@"published"];
+  [encoder encodeObject:array forKey:@"array"];
 }
 
 @end
@@ -114,6 +119,15 @@ void circularReference(void) {
     archiveData(array, @"circularReference");
 }
 
+void note(void) {
+    Note *object = [[Note alloc] init];
+    object.title = @"Some cool title";
+    object.author = @"Michael Wright";
+    object.published = TRUE;
+    object.array = @[@"Hello, World!", @42, @YES];
+    archiveData(object, @"note");
+}
+
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
         plainString();
@@ -123,6 +137,7 @@ int main(int argc, const char * argv[]) {
         circularReference();
         archiveNSAffineTransform();
         bundle();
+        note();
     }
     return 0;
 }

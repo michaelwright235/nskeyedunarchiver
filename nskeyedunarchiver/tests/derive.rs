@@ -1,10 +1,11 @@
 #![allow(unused_variables, dead_code, non_snake_case)]
 #![cfg(feature = "derive")]
 
-use nskeyedunarchiver_derive::Decodable;
 use nskeyedunarchiver::{
-    de::{Decodable, NSData, NSDictionary},
-    object_types, NSKeyedUnarchiver};
+    de::{Decodable, NSData, NSDictionary, ObjectType},
+    object_types, DeError, NSKeyedUnarchiver, Object,
+};
+use nskeyedunarchiver_derive::Decodable;
 
 #[derive(Decodable, Debug)]
 struct NSAffineTransform {
@@ -34,6 +35,40 @@ struct Foo {
     #[decodable(rename = "NSICC")]
     icc: Vec<u8>,
     NSID: i64,
+}
+
+#[derive(Decodable, Debug, PartialEq)]
+enum ArrayMember {
+    String(String),
+    Integer(i64),
+    Boolean(bool),
+}
+
+#[derive(Decodable, Debug, PartialEq)]
+struct Note {
+    author: String,
+    title: String,
+    published: bool,
+    array: Vec<ArrayMember>,
+}
+
+#[test]
+fn note() {
+    let unarchiver = NSKeyedUnarchiver::from_file("./tests_resources/plists/note.plist").unwrap();
+    let obj = unarchiver.top().get("root").unwrap().clone();
+    let decoded = Note::decode(obj, &object_types!()).unwrap();
+
+    let note = Note {
+        author: "Michael Wright".into(),
+        title: "Some cool title".into(),
+        published: true,
+        array: vec![
+            ArrayMember::String("Hello, World!".into()),
+            ArrayMember::Integer(42),
+            ArrayMember::Boolean(true),
+        ],
+    };
+    assert_eq!(note, decoded);
 }
 
 #[test]
