@@ -258,12 +258,10 @@ impl<T: ObjectMember> ObjectMember for Option<T> {
     where
         Self: Sized + 'static,
     {
-        let result = T::get_from_object(obj, key, types);
-        if let Some(DeError::MissingObjectKey(_, _)) = result.as_ref().err() {
+        if !obj.contains_key(key) {
             return Ok(None);
         }
-
-        Ok(Some(result?))
+        Ok(Some(T::get_from_object(obj, key, types)?))
     }
     fn as_object_type() -> Option<ObjectType>
     where
