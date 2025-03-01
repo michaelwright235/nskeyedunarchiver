@@ -7,7 +7,7 @@ use syn::{spanned::Spanned, Error, Result};
 
 // All possible attributes
 // #[decodable(rename = "foo")], #[decodable(skip)]
-const BOOL_ATTRS: [&str; 1] = ["skip"];
+const BOOL_ATTRS: [&str; 2] = ["skip", "unhandled"];
 const STR_ATTRS: [&str; 1] = ["rename"];
 
 /// Parses all attributes that come from #[decodable(...)]
@@ -83,9 +83,11 @@ impl TryFrom<&[syn::Attribute]> for MacroAttributes {
             }
             str_attrs.insert(attr_name.to_string(), attr_value.to_string());
         }
-        if bool_attrs.contains(&"skip".to_string()) && !str_attrs.is_empty() {
+
+        if bool_attrs.contains(&"skip".to_string()) && (!str_attrs.is_empty() || bool_attrs.len() > 1) {
             return Err(Error::new(decodable_attr.path().span(), "`skip` cannot be used with other arguments"));
         }
+
         Ok(Self {
             str_attrs,
             bool_attrs
@@ -123,12 +125,21 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
     // First interator over fields. We find all their types to build a Vec<ObjectType>
     // to pass it to `get_from_object` methods
     let mut object_types = Vec::with_capacity(named_fields.named.len());
+    let mut field_names = Vec::with_capacity(named_fields.named.len());
     for f in &named_fields.named {
         // hangle things like Vec<u8> (brackets like <u8>)
         let field_attrs = MacroAttributes::try_from(f.attrs.as_slice())?;
-        if field_attrs.bool_attrs.contains(&"skip".to_string()) {
+        if field_attrs.bool_attrs.contains(&"skip".to_string()) || field_attrs.bool_attrs.contains(&"unhandled".to_string()){
             continue;
         }
+
+        // For `unhandled`
+        let mut field_name = f.ident.as_ref().unwrap().to_string();
+        if let Some(new_name) = field_attrs.str_attrs.get("rename") {
+            field_name = new_name.to_string();
+        }
+        field_names.push(quote!(#field_name));
+
         if let syn::Type::Path(b) = &f.ty {
             let last_segment = b.path.segments.last().unwrap();
             let last_segment_ident = &last_segment.ident;
@@ -178,6 +189,36 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
         if found_skip {
             let inner = quote! {
                 #field_ident: Default::default()
+            };
+            field_inits.push(inner);
+            continue;
+        }
+
+        // #[decodable(unhandled)]
+        // Find all unhandled fields and create HashMap<String, ValueRef>
+        // of them and their values
+        if field_attrs.bool_attrs.contains(&"unhandled".to_string()) {
+            let inner = quote! {
+                #field_ident: {
+                    let mut unhandled_fields = vec![];
+                    let keys = value.keys();
+                    let fields = vec![#(#field_names),*];
+                    for key in keys {
+                        if !fields.contains(&key.as_str()) {
+                            unhandled_fields.push(key);
+                        }
+                    }
+
+                    let mut unhandled = std::collections::HashMap::with_capacity(unhandled_fields.len());
+                    for field in unhandled_fields {
+                        unhandled.insert(
+                            field.to_string(),
+                            nskeyedunarchiver::ValueRef::get_from_object(value, &field, &extended_types)?
+                        );
+                    }
+
+                    unhandled
+                }
             };
             field_inits.push(inner);
             continue;

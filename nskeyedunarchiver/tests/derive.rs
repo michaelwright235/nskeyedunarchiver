@@ -1,9 +1,11 @@
 #![allow(unused_variables, dead_code, non_snake_case)]
 #![cfg(feature = "derive")]
 
+use std::collections::HashMap;
+
 use nskeyedunarchiver::{
     de::{Decodable, NSData, NSDictionary, ObjectType},
-    object_types, DeError, NSKeyedUnarchiver, Object,
+    object_types, DeError, NSKeyedUnarchiver, Object, ValueRef,
 };
 use nskeyedunarchiver_derive::Decodable;
 
@@ -50,6 +52,8 @@ struct Note {
     title: String,
     published: bool,
     array: Vec<ArrayMember>,
+    #[decodable(unhandled)]
+    unhandeled: HashMap<String, ValueRef>,
 }
 
 #[test]
@@ -67,6 +71,7 @@ fn note() {
             ArrayMember::Integer(42),
             ArrayMember::Boolean(true),
         ],
+        unhandeled: HashMap::new(),
     };
     assert_eq!(note, decoded);
 }
