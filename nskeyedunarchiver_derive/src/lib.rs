@@ -158,9 +158,9 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
     }
     let object_types_macro = quote! {
         {
-            let mut v: Vec<ObjectType> = vec![];
+            let mut v: Vec<nskeyedunarchiver::de::ObjectType> = vec![];
             #(
-                if let Some(t) = <#object_types as ObjectMember>::as_object_type() {
+                if let Some(t) = <#object_types as nskeyedunarchiver::de::ObjectMember>::as_object_type() {
                     v.push(t);
                 }
             )*
@@ -268,18 +268,18 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
 
         impl nskeyedunarchiver::de::ObjectMember for #struct_ident {
             fn get_from_object(
-                obj: &Object,
+                obj: &nskeyedunarchiver::Object,
                 key: &str,
-                types: &[ObjectType],
-            ) -> std::result::Result<Self, DeError>
+                types: &[nskeyedunarchiver::de::ObjectType],
+            ) -> std::result::Result<Self, nskeyedunarchiver::DeError>
             where
                 Self: Sized + 'static {
                     obj.decode_object_as::<Self>(key, types)
             }
-            fn as_object_type() -> Option<ObjectType>
+            fn as_object_type() -> Option<nskeyedunarchiver::de::ObjectType>
             where
                 Self: Sized+ 'static {
-                Some(ObjectType::new::<Self>())
+                Some(nskeyedunarchiver::de::ObjectType::new::<Self>())
             }
         }
     };
@@ -394,7 +394,7 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
     }
 
     let expanded = quote! {
-        impl Decodable for #enum_ident {
+        impl nskeyedunarchiver::de::Decodable for #enum_ident {
             fn is_type_of(classes: &[String]) -> bool
             where
                 Self: Sized {
@@ -405,12 +405,12 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
                 ""
             }
 
-            fn decode(value: nskeyedunarchiver::ValueRef, types: &[ObjectType]) -> Result<Self, DeError>
+            fn decode(value: nskeyedunarchiver::ValueRef, types: &[nskeyedunarchiver::de::ObjectType]) -> Result<Self, nskeyedunarchiver::DeError>
             where
                 Self: Sized {
                 #(#variants_inits)*
 
-                Err(DeError::Message(format!(
+                Err(nskeyedunarchiver::DeError::Message(format!(
                     "Undecodable object for enum: {value:?}",
                 )))
             }
