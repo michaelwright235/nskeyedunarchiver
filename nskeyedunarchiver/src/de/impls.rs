@@ -41,6 +41,122 @@ impl Decodable for String {
     }
 }
 
+impl Decodable for bool {
+    fn is_type_of(_classes: &[String]) -> bool
+    where
+        Self: Sized,
+    {
+        false
+    }
+
+    fn class(&self) -> &str {
+        ""
+    }
+
+    fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError>
+    where
+        Self: Sized,
+    {
+        Ok(value.as_boolean().ok_or(DeError::ExpectedBoolean)?)
+    }
+}
+
+impl Decodable for Vec<u8> {
+    fn is_type_of(_classes: &[String]) -> bool
+    where
+        Self: Sized,
+    {
+        false
+    }
+
+    fn class(&self) -> &str {
+        ""
+    }
+
+    fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError>
+    where
+        Self: Sized,
+    {
+        Ok(value.as_data().ok_or(DeError::ExpectedData)?.to_vec())
+    }
+}
+
+impl<T: Decodable> Decodable for Vec<T> {
+    fn is_type_of(_classes: &[String]) -> bool
+    where
+        Self: Sized,
+    {
+        false
+    }
+
+    fn class(&self) -> &str {
+        ""
+    }
+
+    fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError>
+    where
+        Self: Sized,
+    {
+        let obj = value.as_object().ok_or(DeError::ExpectedObject)?;
+        if !NSArray::is_type_of(obj.classes()) {
+            return Err(DeError::Message("NSArray: not an array".to_string()));
+        }
+        let Ok(inner_objs) = obj.decode_array("NS.objects") else {
+            return Err(DeError::Message(
+                "NSArray: Expected array of objects".to_string(),
+            ));
+        };
+        let mut result = Vec::with_capacity(inner_objs.len());
+        for inner_obj in inner_objs {
+            result.push(T::decode(inner_obj.clone(), types)?);
+        }
+
+        /*let arr = NSArray::get_from_object(obj, key, types)?;
+        arr.try_into_objects::<T>()*/
+        Ok(result)
+    }
+}
+
+impl Decodable for ValueRef {
+    fn is_type_of(_classes: &[String]) -> bool
+    where
+        Self: Sized,
+    {
+        false
+    }
+
+    fn class(&self) -> &str {
+        ""
+    }
+
+    fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError>
+    where
+        Self: Sized,
+    {
+        Ok(value)
+    }
+}
+
+impl<T: Decodable> Decodable for Option<T> {
+    fn is_type_of(_classes: &[String]) -> bool
+    where
+        Self: Sized,
+    {
+        false
+    }
+
+    fn class(&self) -> &str {
+        ""
+    }
+
+    fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError>
+    where
+        Self: Sized,
+    {
+        Ok(T::decode(value, types).ok())
+    }
+}
+
 impl Decodable for f64 {
     fn is_type_of(_classes: &[String]) -> bool {
         false
@@ -52,7 +168,7 @@ impl Decodable for f64 {
         let Some(float) = value.as_float() else {
             return Err(DeError::ExpectedFloat);
         };
-        Ok(*float)
+        Ok(float)
     }
 }
 
@@ -68,6 +184,36 @@ impl Decodable for Integer {
             return Err(DeError::ExpectedInteger);
         };
         Ok(*int)
+    }
+}
+
+impl Decodable for u64 {
+    fn is_type_of(_classes: &[String]) -> bool {
+        false
+    }
+    fn class(&self) -> &str {
+        ""
+    }
+    fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError> {
+        let integer = Integer::decode(value, types)?;
+        Ok(integer.as_unsigned().ok_or(DeError::Message(
+            "Unable to represent an integer as u64".into(),
+        ))?)
+    }
+}
+
+impl Decodable for i64 {
+    fn is_type_of(_classes: &[String]) -> bool {
+        false
+    }
+    fn class(&self) -> &str {
+        ""
+    }
+    fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError> {
+        let integer = Integer::decode(value, types)?;
+        Ok(integer.as_signed().ok_or(DeError::Message(
+            "Unable to represent an integer as i64".into(),
+        ))?)
     }
 }
 
