@@ -7,7 +7,7 @@ use syn::{spanned::Spanned, Error, Result};
 
 // All possible attributes
 // #[decodable(rename = "foo")], #[decodable(skip)]
-const BOOL_ATTRS: [&str; 2] = ["skip", "unhandled"];
+const BOOL_ATTRS: [&str; 3] = ["skip", "unhandled", "default"];
 const STR_ATTRS: [&str; 1] = ["rename"];
 
 /// Parses all attributes that come from #[decodable(...)]
@@ -116,8 +116,11 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
     if let Some(new_name) = struct_attrs.str_attrs.get("rename") {
         struct_name = new_name.to_string();
     }
-    if struct_attrs.bool_attrs.contains(&"skip".to_string()) {
-        return Err(Error::new(input.attrs[0].path().span(), "`skip` can only be used for fields"));
+    if struct_attrs.bool_attrs.contains(&"skip".to_string())
+        || struct_attrs.bool_attrs.contains(&"unhandled".to_string())
+        || struct_attrs.bool_attrs.contains(&"default".to_string())
+        {
+        return Err(Error::new(input.attrs[0].path().span(), "`skip`, `unhandled`, `default` can only be used for fields"));
     }
 
     let mut field_inits: Vec<proc_macro2::TokenStream> =
@@ -231,18 +234,45 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
             let last_segment_ident = &last_segment.ident;
             if let syn::PathArguments::AngleBracketed(args) = &last_segment.arguments {
                 let a = args.to_token_stream();
-                let inner = quote! {
+                let mut inner = quote! {
                     #field_ident: #last_segment_ident::#a::get_from_object(value, #field_name, &extended_types)?
                 };
+
+                // Handle #[decodable(default)]
+                if field_attrs.bool_attrs.contains(&"default".to_string()) {
+                    inner = quote! {
+                        #field_ident: {
+                            let result = #last_segment_ident::#a::get_from_object(value, #field_name, &extended_types);
+                            if let Some(nskeyedunarchiver::DeError::MissingObjectKey(_,_)) = result.as_ref().err() {
+                                Default::default()
+                            } else {
+                                result?
+                            }
+                        }
+                    };
+                }
                 field_inits.push(inner);
                 continue;
             }
         }
 
         // regular types
-        let inner = quote! {
+        let mut inner = quote! {
             #field_ident: #field_type::get_from_object(value, #field_name, &extended_types)?
         };
+        // Handle #[decodable(default)]
+        if field_attrs.bool_attrs.contains(&"default".to_string()) {
+            inner = quote! {
+                #field_ident: {
+                    let result = #field_type::get_from_object(value, #field_name, &extended_types);
+                    if let Some(nskeyedunarchiver::DeError::MissingObjectKey(_,_)) = result.as_ref().err() {
+                        Default::default()
+                    } else {
+                        result?
+                    }
+                }
+            };
+        }
         field_inits.push(inner);
     }
 

@@ -50,6 +50,7 @@ enum ArrayMember {
 struct Note {
     author: String,
     title: String,
+    #[decodable(default)]
     published: bool,
     array: Vec<ArrayMember>,
     #[decodable(unhandled)]
