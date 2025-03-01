@@ -141,6 +141,7 @@ impl Decodable for NSArray {
             ));
         };
 
+        // TODO: add data
         let mut decoded_objs = Vec::with_capacity(inner_objs.len());
         for obj in inner_objs {
             if obj.as_ref().as_string().is_some() {

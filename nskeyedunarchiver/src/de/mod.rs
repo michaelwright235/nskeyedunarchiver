@@ -102,7 +102,8 @@ impl std::fmt::Debug for dyn Decodable {
 pub struct ObjectType {
     type_id: TypeId,
     is_type_of_fn: fn(classes: &[String]) -> bool,
-    decode_as_any_fn: fn(obj: ValueRef, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError>,
+    decode_as_any_fn:
+        fn(obj: ValueRef, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError>,
 }
 
 impl ObjectType {
@@ -110,7 +111,7 @@ impl ObjectType {
         Self {
             type_id: TypeId::of::<T>(),
             is_type_of_fn: T::is_type_of,
-            decode_as_any_fn: T::decode_as_any
+            decode_as_any_fn: T::decode_as_any,
         }
     }
     pub fn type_id(&self) -> TypeId {
@@ -119,7 +120,11 @@ impl ObjectType {
     pub fn is_type_of(&self, classes: &[String]) -> bool {
         (self.is_type_of_fn)(classes)
     }
-    pub fn decode_as_any(&self, obj: ValueRef, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError> {
+    pub fn decode_as_any(
+        &self,
+        obj: ValueRef,
+        types: &[ObjectType],
+    ) -> Result<Box<dyn Decodable>, DeError> {
         (self.decode_as_any_fn)(obj, types)
     }
 }

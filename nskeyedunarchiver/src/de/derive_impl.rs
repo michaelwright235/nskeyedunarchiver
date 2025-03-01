@@ -1,6 +1,6 @@
-use plist::Integer;
 use super::{Decodable, NSArray, ObjectType};
 use crate::{DeError, Object, UniqueId, ValueRef};
+use plist::Integer;
 
 pub trait ObjectMember {
     fn get_from_object(
@@ -13,7 +13,7 @@ pub trait ObjectMember {
 
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized+ 'static;
+        Self: Sized + 'static;
 }
 
 impl ObjectMember for String {
@@ -23,13 +23,15 @@ impl ObjectMember for String {
         _types: &[ObjectType],
     ) -> std::result::Result<Self, DeError>
     where
-        Self: Sized + 'static {
+        Self: Sized + 'static,
+    {
         obj.decode_string(key).map(|v| v.into_owned())
     }
 
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized+ 'static {
+        Self: Sized + 'static,
+    {
         Some(ObjectType::new::<Self>())
     }
 }
@@ -41,12 +43,14 @@ impl ObjectMember for f64 {
         _types: &[ObjectType],
     ) -> std::result::Result<Self, DeError>
     where
-        Self: Sized + 'static {
+        Self: Sized + 'static,
+    {
         obj.decode_float(key).copied()
     }
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized+ 'static {
+        Self: Sized + 'static,
+    {
         Some(ObjectType::new::<Self>())
     }
 }
@@ -58,7 +62,8 @@ impl ObjectMember for u64 {
         _types: &[ObjectType],
     ) -> std::result::Result<Self, DeError>
     where
-        Self: Sized + 'static {
+        Self: Sized + 'static,
+    {
         obj.decode_integer(key).and_then(|v| {
             v.as_unsigned().ok_or(DeError::Message(
                 "Unable to represent an integer as u64".into(),
@@ -67,7 +72,8 @@ impl ObjectMember for u64 {
     }
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized+ 'static {
+        Self: Sized + 'static,
+    {
         None
     }
 }
@@ -79,7 +85,8 @@ impl ObjectMember for i64 {
         _types: &[ObjectType],
     ) -> std::result::Result<Self, DeError>
     where
-        Self: Sized + 'static {
+        Self: Sized + 'static,
+    {
         obj.decode_integer(key).and_then(|v| {
             v.as_signed().ok_or(DeError::Message(
                 "Unable to represent an integer as i64".into(),
@@ -88,7 +95,8 @@ impl ObjectMember for i64 {
     }
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized+ 'static {
+        Self: Sized + 'static,
+    {
         None
     }
 }
@@ -100,12 +108,14 @@ impl ObjectMember for Integer {
         _types: &[ObjectType],
     ) -> std::result::Result<Self, DeError>
     where
-        Self: Sized + 'static {
+        Self: Sized + 'static,
+    {
         obj.decode_integer(key).copied()
     }
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized+ 'static {
+        Self: Sized + 'static,
+    {
         Some(ObjectType::new::<Self>())
     }
 }
@@ -133,7 +143,12 @@ macro_rules! impl_object_member {
     };
 }
 
-impl_object_member!(super::NSArray, super::NSSet, super::NSDictionary, super::NSData);
+impl_object_member!(
+    super::NSArray,
+    super::NSSet,
+    super::NSDictionary,
+    super::NSData
+);
 
 impl ObjectMember for bool {
     fn get_from_object(
@@ -142,12 +157,14 @@ impl ObjectMember for bool {
         _types: &[ObjectType],
     ) -> std::result::Result<Self, DeError>
     where
-        Self: Sized + 'static {
+        Self: Sized + 'static,
+    {
         obj.decode_bool(key)
     }
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized+ 'static {
+        Self: Sized + 'static,
+    {
         None
     }
 }
@@ -159,12 +176,14 @@ impl ObjectMember for Vec<u8> {
         _types: &[ObjectType],
     ) -> std::result::Result<Self, DeError>
     where
-        Self: Sized + 'static {
+        Self: Sized + 'static,
+    {
         obj.decode_data(key).map(|v| v.to_vec())
     }
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized+ 'static {
+        Self: Sized + 'static,
+    {
         None
     }
 }
@@ -201,12 +220,11 @@ impl<T: Decodable> ObjectMember for Vec<T> {
     }
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized+ 'static {
+        Self: Sized + 'static,
+    {
         None
     }
 }
-
-
 
 impl ObjectMember for ValueRef {
     fn get_from_object(
@@ -215,12 +233,14 @@ impl ObjectMember for ValueRef {
         _types: &[ObjectType],
     ) -> std::result::Result<Self, DeError>
     where
-        Self: Sized + 'static {
+        Self: Sized + 'static,
+    {
         obj.decode_object(key)
     }
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized+ 'static {
+        Self: Sized + 'static,
+    {
         None
     }
 }
@@ -232,12 +252,14 @@ impl ObjectMember for UniqueId {
         _types: &[ObjectType],
     ) -> std::result::Result<Self, DeError>
     where
-        Self: Sized + 'static {
+        Self: Sized + 'static,
+    {
         obj.decode_object(key).map(|v| v.unique_id)
     }
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized+ 'static {
+        Self: Sized + 'static,
+    {
         None
     }
 }
@@ -249,12 +271,14 @@ impl<T: ObjectMember> ObjectMember for Option<T> {
         types: &[ObjectType],
     ) -> std::result::Result<Self, DeError>
     where
-        Self: Sized + 'static {
+        Self: Sized + 'static,
+    {
         Ok(T::get_from_object(obj, key, types).ok())
     }
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized+ 'static {
+        Self: Sized + 'static,
+    {
         None
     }
 }
