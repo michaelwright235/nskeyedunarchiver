@@ -33,4 +33,6 @@ pub enum DeError {
     ExpectedObject,
     #[error("Expected null reference")]
     ExpectedNullRef,
+    #[error("{0}: Missing object key `{1}`")]
+    MissingObjectKey(String, String),
 }

@@ -84,7 +84,8 @@ impl TryFrom<&[syn::Attribute]> for MacroAttributes {
             str_attrs.insert(attr_name.to_string(), attr_value.to_string());
         }
 
-        if bool_attrs.contains(&"skip".to_string()) && (!str_attrs.is_empty() || bool_attrs.len() > 1) {
+        if (bool_attrs.contains(&"skip".to_string()) || bool_attrs.contains(&"unhandled".to_string()))
+            && (!str_attrs.is_empty() || bool_attrs.len() > 1) {
             return Err(Error::new(decodable_attr.path().span(), "`skip` cannot be used with other arguments"));
         }
 

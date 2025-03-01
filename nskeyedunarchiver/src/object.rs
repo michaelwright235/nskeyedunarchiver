@@ -9,11 +9,9 @@ use plist::{Dictionary as PlistDictionary, Value as PlistValue};
 macro_rules! get_key {
     ($self:ident, $key:ident, $typ:literal) => {{
         if !$self.contains_key($key) {
-            return Err(DeError::Message(format!(
-                "{1}: Missing key '{0}' for object",
-                $key,
-                $self.class()
-            )));
+            return Err(
+                DeError::MissingObjectKey($self.class().into(), $key.into())
+        );
         }
         let raw_object = $self.fields.get($key).unwrap();
         paste::paste! {
@@ -204,11 +202,9 @@ impl Object {
     /// Returns a [DeError] if a value doesn't exist.
     pub fn is_null_ref(&self, key: &str) -> Result<bool, DeError> {
         if !self.contains_key(key) {
-            return Err(DeError::Message(format!(
-                "Missing key '{0}' for object '{1}'",
-                self.class(),
-                key
-            )));
+            return Err(
+                DeError::MissingObjectKey(self.class().into(), key.into())
+            );
         }
         Ok(matches!(
             self.fields.get(key).unwrap(),
