@@ -41,13 +41,14 @@ impl UniqueId {
 /// Possible values inside of $objects
 #[derive(Debug)]
 pub(crate) enum ArchiveValueVariant {
-    String(String),
-    Integer(Integer),
-    Real(f64),
-    Data(Vec<u8>),
-    NullRef,
+    Boolean(bool),
     Classes(Vec<String>),
+    Data(Vec<u8>),
+    Integer(Integer),
+    NullRef,
     Object(Object),
+    Real(f64),
+    String(String),
 }
 
 /// Represents a single value contained inside of an archive.
@@ -64,10 +65,24 @@ impl ArchiveValue {
         Self { value, unique_id }
     }
 
+    /// Checks if a contained value is a [bool].
+    pub fn as_boolean(&self) -> Option<bool> {
+        if let ArchiveValueVariant::Boolean(b) = &self.value {
+            Some(*b)
+        } else {
+            None
+        }
+    }
+
+    /// Checks if a contained value is a [bool].
+    pub fn is_boolean(&self) -> bool {
+        matches!(&self.value, ArchiveValueVariant::Boolean(_))
+    }
+
     /// Returns [Some] with a reference to a contained [String] if a value represents it or [None] if it doesn't.
-    pub fn as_string(&self) -> Option<&String> {
+    pub fn as_string(&self) -> Option<&str> {
         if let ArchiveValueVariant::String(v) = &self.value {
-            Some(v)
+            Some(v.as_str())
         } else {
             None
         }
@@ -93,9 +108,9 @@ impl ArchiveValue {
     }
 
     /// Returns [Some] with a reference to a contained float ([f64]) if a value represents it or [None] if it doesn't.
-    pub fn as_float(&self) -> Option<&f64> {
+    pub fn as_float(&self) -> Option<f64> {
         if let ArchiveValueVariant::Real(v) = &self.value {
-            Some(v)
+            Some(*v)
         } else {
             None
         }
@@ -282,11 +297,8 @@ impl NSKeyedUnarchiver {
     }
 
     /// Checks if a [plist::Value] has an object structure.
-    fn is_container(val: &PlistValue) -> bool {
-        let Some(dict) = val.as_dictionary() else {
-            return false;
-        };
-        if let Some(cls) = dict.get("$class") {
+    fn is_container(val: &PlistDictionary) -> bool {
+        if let Some(cls) = val.get("$class") {
             cls.as_uid().is_some()
         } else {
             false
@@ -299,61 +311,65 @@ impl NSKeyedUnarchiver {
         let mut decoded_objects = Vec::with_capacity(objects.len());
 
         for (index, obj) in objects.into_iter().enumerate() {
-            let decoded_obj = if let Some(s) = obj.as_string() {
-                if s == NULL_OBJECT_REFERENCE_NAME {
-                    ArchiveValue::new(ArchiveValueVariant::NullRef, UniqueId::new(index))
-                } else {
-                    ArchiveValue::new(
-                        ArchiveValueVariant::String(obj.into_string().unwrap()),
-                        UniqueId::new(index),
-                    )
-                }
-            } else if let PlistValue::Integer(i) = obj {
-                ArchiveValue::new(ArchiveValueVariant::Integer(i), UniqueId::new(index))
-            } else if let Some(f) = obj.as_real() {
-                ArchiveValue::new(ArchiveValueVariant::Real(f), UniqueId::new(index))
-            } else if let Some(d) = obj.as_data() {
-                ArchiveValue::new(ArchiveValueVariant::Data(d.to_vec()), UniqueId::new(index))
-            } else if let Some(dict) = obj.as_dictionary() {
-                if Self::is_container(&obj) {
-                    ArchiveValue::new(
-                        ArchiveValueVariant::Object(Object::from_dict(
-                            obj.into_dictionary().unwrap(),
-                        )?),
-                        UniqueId::new(index),
-                    )
-                } else if dict.contains_key("$classes") {
-                    if let Some(classes_arr) = obj
-                        .into_dictionary()
-                        .unwrap()
-                        .remove("$classes")
-                        .unwrap()
-                        .into_array()
-                    {
-                        let mut classes = Vec::with_capacity(classes_arr.len());
-                        for class in classes_arr {
-                            if let Some(s) = class.into_string() {
-                                classes.push(s)
-                            } else {
-                                return Err(Error::IncorrectFormat(
-                                    "Incorrect Classes object".into(),
-                                ));
-                            }
-                        }
+            let decoded_obj = match obj {
+                PlistValue::Array(_) => todo!(),
+                PlistValue::Dictionary(mut dict) => {
+                    if Self::is_container(&dict) {
                         ArchiveValue::new(
-                            ArchiveValueVariant::Classes(classes),
+                            ArchiveValueVariant::Object(Object::from_dict(dict)?),
                             UniqueId::new(index),
                         )
+                    } else if dict.contains_key("$classes") {
+                        if let Some(classes_arr) = dict.remove("$classes").unwrap().into_array() {
+                            let mut classes = Vec::with_capacity(classes_arr.len());
+                            for class in classes_arr {
+                                if let Some(s) = class.into_string() {
+                                    classes.push(s)
+                                } else {
+                                    return Err(Error::IncorrectFormat(
+                                        "Incorrect Classes object".into(),
+                                    ));
+                                }
+                            }
+                            ArchiveValue::new(
+                                ArchiveValueVariant::Classes(classes),
+                                UniqueId::new(index),
+                            )
+                        } else {
+                            return Err(Error::IncorrectFormat("Incorrect Classes object".into()));
+                        }
                     } else {
-                        return Err(Error::IncorrectFormat("Incorrect Classes object".into()));
+                        //println!("{:?}", obj);
+                        return Err(Error::IncorrectFormat("Unexpected object type".into()));
                     }
-                } else {
-                    //println!("{:?}", obj);
-                    return Err(Error::IncorrectFormat("Unexpected object type".into()));
                 }
-            } else {
-                println!("{:?}", obj);
-                return Err(Error::IncorrectFormat("Unexpected object type".into()));
+                PlistValue::Boolean(b) => {
+                    ArchiveValue::new(ArchiveValueVariant::Boolean(b), UniqueId::new(index))
+                }
+                PlistValue::Data(data) => ArchiveValue::new(
+                    ArchiveValueVariant::Data(data.to_vec()),
+                    UniqueId::new(index),
+                ),
+                PlistValue::Date(_) => todo!(),
+                PlistValue::Real(real) => {
+                    ArchiveValue::new(ArchiveValueVariant::Real(real), UniqueId::new(index))
+                }
+                PlistValue::Integer(integer) => {
+                    ArchiveValue::new(ArchiveValueVariant::Integer(integer), UniqueId::new(index))
+                }
+                PlistValue::String(string) => {
+                    if string == NULL_OBJECT_REFERENCE_NAME {
+                        ArchiveValue::new(ArchiveValueVariant::NullRef, UniqueId::new(index))
+                    } else {
+                        ArchiveValue::new(ArchiveValueVariant::String(string), UniqueId::new(index))
+                    }
+                }
+                PlistValue::Uid(_) => todo!(),
+                _ => {
+                    return Err(Error::IncorrectFormat(format!(
+                        "Unexpected object type: {obj:?}"
+                    )));
+                }
             };
             decoded_objects.push(Rc::new(decoded_obj));
         }
