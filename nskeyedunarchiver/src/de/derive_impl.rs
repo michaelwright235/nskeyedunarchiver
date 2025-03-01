@@ -176,9 +176,28 @@ impl<T: Decodable> ObjectMember for Vec<T> {
         types: &[ObjectType],
     ) -> std::result::Result<Self, DeError>
     where
-        Self: Sized + 'static {
-        let arr = NSArray::get_from_object(obj, key, types)?;
-        arr.try_into_objects::<T>()
+        Self: Sized + 'static,
+    {
+        let array = obj.decode_object(key)?;
+        let obj = array.as_object().ok_or(DeError::ExpectedObject)?;
+        if !NSArray::is_type_of(obj.classes()) {
+            return Err(DeError::Message(
+                "NSArray: not an array".to_string(),
+            ));
+        }
+        let Ok(inner_objs) = obj.decode_array("NS.objects") else {
+            return Err(DeError::Message(
+                "NSArray: Expected array of objects".to_string(),
+            ));
+        };
+        let mut result = Vec::with_capacity(inner_objs.len());
+        for inner_obj in inner_objs {
+            result.push(T::decode(inner_obj.clone(), types)?);
+        }
+
+        /*let arr = NSArray::get_from_object(obj, key, types)?;
+        arr.try_into_objects::<T>()*/
+        Ok(result)
     }
     fn as_object_type() -> Option<ObjectType>
     where
