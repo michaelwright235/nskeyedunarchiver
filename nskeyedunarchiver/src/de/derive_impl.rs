@@ -217,9 +217,6 @@ impl ObjectMember for ValueRef {
     where
         Self: Sized + 'static,
     {
-        if obj.is_null_ref(key)? {
-            return Err(DeError::ExpectedObject)
-        }
         obj.decode_object(key)
     }
     fn as_object_type() -> Option<ObjectType>

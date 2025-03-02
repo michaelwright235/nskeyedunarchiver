@@ -40,7 +40,7 @@ enum UninitRefs {
     RawRef(u64),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ObjectValue {
     String(String),
     Integer(Integer),
@@ -217,6 +217,10 @@ impl Object {
     /// Checks if the object contains a value with a given `key`.
     pub fn contains_key(&self, key: &str) -> bool {
         self.fields.contains_key(key)
+    }
+
+    pub fn as_map(&self) -> &HashMap<String, ObjectValue> {
+        &self.fields
     }
 
     /// Returns classes of the object. The first one is the actual class,

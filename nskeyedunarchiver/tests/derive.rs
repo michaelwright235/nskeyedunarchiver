@@ -4,8 +4,7 @@
 use std::collections::HashMap;
 
 use nskeyedunarchiver::{
-    de::{Decodable, NSData, NSDictionary},
-    object_types, NSKeyedUnarchiver, ValueRef,
+    de::{Decodable, NSData, NSDictionary}, object_types, NSKeyedUnarchiver, ObjectValue
 };
 use nskeyedunarchiver_derive::Decodable;
 
@@ -54,7 +53,7 @@ struct Note {
     published: bool,
     array: Vec<ArrayMember>,
     #[decodable(unhandled)]
-    unhandled: HashMap<String, ValueRef>,
+    unhandled: HashMap<String, ObjectValue>,
 }
 
 #[test]

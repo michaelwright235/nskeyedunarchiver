@@ -215,15 +215,13 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
 
                     let mut unhandled = std::collections::HashMap::with_capacity(unhandled_fields.len());
                     for field in unhandled_fields {
-                        let value = nskeyedunarchiver::ValueRef::get_from_object(value, &field, &extended_types);
-                        if let Some(nskeyedunarchiver::DeError::ExpectedObject) = value.as_ref().err() {
-                            // TODO: handle situations when a key points to $null
+                        let Some(value) = value.as_map().get(field) else {
                             continue;
-                        }
+                        };
 
                         unhandled.insert(
                             field.to_string(),
-                            value?
+                            value.clone(),
                         );
                     }
 
