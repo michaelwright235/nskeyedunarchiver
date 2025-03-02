@@ -164,7 +164,7 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
         {
             let mut v: Vec<nskeyedunarchiver::de::ObjectType> = vec![];
             #(
-                if let Some(t) = <#object_types as nskeyedunarchiver::de::ObjectMember>::as_object_type() {
+                if let Some(t) = <#object_types as nskeyedunarchiver::de::Decodable>::as_object_type() {
                     v.push(t);
                 }
             )*
@@ -288,7 +288,7 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
             fn class(&self) -> &str { #struct_name }
 
             fn decode(value: nskeyedunarchiver::ValueRef, types: &[nskeyedunarchiver::de::ObjectType]) -> Result<Self, nskeyedunarchiver::DeError> {
-                use nskeyedunarchiver::de::ObjectMember;
+                use nskeyedunarchiver::de::Decodable;
                 let value = nskeyedunarchiver::as_object!(value)?;
                 // One don't need to pass all types from the struct, only ones that don't appear there explicitly
                 let mut extended_types = #object_types_macro;
@@ -298,23 +298,6 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
                         #(#field_inits),*
                     }
                 )
-            }
-        }
-
-        impl nskeyedunarchiver::de::ObjectMember for #struct_ident {
-            fn get_from_object(
-                obj: &nskeyedunarchiver::Object,
-                key: &str,
-                types: &[nskeyedunarchiver::de::ObjectType],
-            ) -> std::result::Result<Self, nskeyedunarchiver::DeError>
-            where
-                Self: Sized + 'static {
-                    obj.decode_object_as::<Self>(key, types)
-            }
-            fn as_object_type() -> Option<nskeyedunarchiver::de::ObjectType>
-            where
-                Self: Sized+ 'static {
-                Some(nskeyedunarchiver::de::ObjectType::new::<Self>())
             }
         }
     };

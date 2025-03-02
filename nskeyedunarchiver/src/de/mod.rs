@@ -1,13 +1,8 @@
-#[cfg(feature = "derive")]
-mod derive_impl;
-#[cfg(feature = "derive")]
-pub use derive_impl::ObjectMember;
-
 mod impls;
 use downcast_rs::{impl_downcast, Downcast};
 pub use impls::*;
 
-use crate::{DeError, ValueRef};
+use crate::{DeError, Object, ValueRef};
 use std::any::TypeId;
 
 #[cfg(not(feature = "debug_decodable"))]
@@ -41,11 +36,23 @@ pub trait Decodable: Downcast {
 
     #[doc(hidden)]
     /// This is an internal method that usually shouldn't be overwritten.
-    fn as_object_type() -> ObjectType
+    fn as_object_type() -> Option<ObjectType>
     where
         Self: Sized + 'static,
     {
-        ObjectType::new::<Self>()
+        Some(ObjectType::new::<Self>())
+    }
+
+    #[doc(hidden)]
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static
+    {
+        obj.decode_object_as::<Self>(key, types)
     }
 }
 
@@ -80,11 +87,23 @@ pub trait Decodable: Downcast + std::fmt::Debug {
 
     #[doc(hidden)]
     /// This is an internal method that usually shouldn't be overwritten.
-    fn as_object_type() -> ObjectType
+    fn as_object_type() -> Option<ObjectType>
     where
         Self: Sized + 'static,
     {
-        ObjectType::new::<Self>()
+        Some(ObjectType::new::<Self>())
+    }
+
+    #[doc(hidden)]
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static
+    {
+        obj.decode_object_as::<Self>(key, types)
     }
 }
 
@@ -137,12 +156,12 @@ macro_rules! object_types {
     ($($name:ident),*) => {{
         use $crate::de::Decodable;
         Vec::from([
-            <$crate::de::NSArray as Decodable>::as_object_type(),
-            <$crate::de::NSSet as Decodable>::as_object_type(),
-            <$crate::de::NSDictionary as Decodable>::as_object_type(),
-            <$crate::de::NSData as Decodable>::as_object_type(),
+            <$crate::de::NSArray as Decodable>::as_object_type().unwrap(),
+            <$crate::de::NSSet as Decodable>::as_object_type().unwrap(),
+            <$crate::de::NSDictionary as Decodable>::as_object_type().unwrap(),
+            <$crate::de::NSData as Decodable>::as_object_type().unwrap(),
             $(
-                <$name as Decodable>::as_object_type()
+                <$name as Decodable>::as_object_type().unwrap()
             ),*
         ])
     }};

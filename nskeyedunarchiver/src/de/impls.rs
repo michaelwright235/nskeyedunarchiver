@@ -1,5 +1,5 @@
 use super::{value_ref_to_any, Decodable, ObjectType};
-use crate::{as_object, DeError, Integer, ObjectValue, UniqueId, ValueRef};
+use crate::{as_object, DeError, Integer, Object, ObjectValue, UniqueId, ValueRef};
 use std::collections::HashMap;
 
 impl Decodable for String {
@@ -48,6 +48,23 @@ impl Decodable for String {
         };
         Ok(s)
     }
+
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        _types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static,
+    {
+        obj.decode_string(key)
+    }
+
+        fn as_object_type() -> Option<ObjectType>
+        where
+            Self: Sized + 'static, {
+        None
+    }
 }
 
 impl Decodable for bool {
@@ -67,6 +84,22 @@ impl Decodable for bool {
         Self: Sized,
     {
         value.as_boolean().ok_or(DeError::ExpectedBoolean)
+    }
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        _types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static,
+    {
+        obj.decode_bool(key)
+    }
+
+    fn as_object_type() -> Option<ObjectType>
+        where
+            Self: Sized + 'static, {
+        None
     }
 }
 
@@ -88,6 +121,22 @@ impl Decodable for Vec<u8> {
     {
         Ok(value.as_data().ok_or(DeError::ExpectedData)?.to_vec())
     }
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        _types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static,
+    {
+        obj.decode_data(key).map(|v| v.to_vec())
+    }
+
+    fn as_object_type() -> Option<ObjectType>
+    where
+        Self: Sized + 'static, {
+    None
+}
 }
 
 impl<T: Decodable> Decodable for Vec<T> {
@@ -124,6 +173,23 @@ impl<T: Decodable> Decodable for Vec<T> {
         arr.try_into_objects::<T>()*/
         Ok(result)
     }
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static,
+    {
+        let array = obj.decode_object(key)?;
+        Self::decode(array, types)
+    }
+
+    fn as_object_type() -> Option<ObjectType>
+    where
+        Self: Sized + 'static, {
+    None
+}
 }
 
 impl Decodable for ValueRef {
@@ -144,6 +210,23 @@ impl Decodable for ValueRef {
     {
         Ok(value)
     }
+
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        _types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static,
+    {
+        obj.decode_object(key)
+    }
+
+    fn as_object_type() -> Option<ObjectType>
+    where
+        Self: Sized + 'static, {
+    None
+}
 }
 
 impl Decodable for UniqueId {
@@ -164,6 +247,23 @@ impl Decodable for UniqueId {
     {
         Ok(value.unique_id)
     }
+
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        _types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static,
+    {
+        obj.decode_object(key).map(|v| v.unique_id)
+    }
+
+    fn as_object_type() -> Option<ObjectType>
+    where
+        Self: Sized + 'static, {
+    None
+}
 }
 
 impl<T: Decodable> Decodable for Option<T> {
@@ -182,7 +282,27 @@ impl<T: Decodable> Decodable for Option<T> {
     where
         Self: Sized,
     {
-        Ok(T::decode(value, types).ok())
+        Ok(Some(T::decode(value, types)?))
+    }
+
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static,
+    {
+        if !obj.contains_key(key) {
+            return Ok(None);
+        }
+        Ok(Some(T::get_from_object(obj, key, types)?))
+    }
+
+    fn as_object_type() -> Option<ObjectType>
+    where
+        Self: Sized + 'static, {
+        None
     }
 }
 
@@ -199,6 +319,23 @@ impl Decodable for f64 {
         };
         Ok(float)
     }
+
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        _types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static,
+    {
+        obj.decode_float(key).copied()
+    }
+
+    fn as_object_type() -> Option<ObjectType>
+    where
+        Self: Sized + 'static, {
+        None
+    }
 }
 
 impl Decodable for Integer {
@@ -213,6 +350,23 @@ impl Decodable for Integer {
             return Err(DeError::ExpectedInteger);
         };
         Ok(*int)
+    }
+
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        _types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static,
+    {
+        obj.decode_integer(key).copied()
+    }
+
+    fn as_object_type() -> Option<ObjectType>
+    where
+        Self: Sized + 'static, {
+        None
     }
 }
 
@@ -229,6 +383,27 @@ impl Decodable for u64 {
             "Unable to represent an integer as u64".into(),
         ))
     }
+
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        _types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static,
+    {
+        obj.decode_integer(key).and_then(|v| {
+            v.as_unsigned().ok_or(DeError::Message(
+                "Unable to represent an integer as u64".into(),
+            ))
+        })
+    }
+
+    fn as_object_type() -> Option<ObjectType>
+    where
+        Self: Sized + 'static, {
+        None
+    }
 }
 
 impl Decodable for i64 {
@@ -243,6 +418,27 @@ impl Decodable for i64 {
         integer.as_signed().ok_or(DeError::Message(
             "Unable to represent an integer as i64".into(),
         ))
+    }
+
+    fn get_from_object(
+        obj: &Object,
+        key: &str,
+        _types: &[ObjectType],
+    ) -> std::result::Result<Self, DeError>
+    where
+        Self: Sized + 'static,
+    {
+        obj.decode_integer(key).and_then(|v| {
+            v.as_signed().ok_or(DeError::Message(
+                "Unable to represent an integer as i64".into(),
+            ))
+        })
+    }
+
+    fn as_object_type() -> Option<ObjectType>
+    where
+        Self: Sized + 'static, {
+        None
     }
 }
 
