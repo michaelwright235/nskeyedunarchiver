@@ -267,4 +267,3 @@ impl<T: ObjectMember> ObjectMember for Option<T> {
         None
     }
 }
-

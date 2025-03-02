@@ -66,7 +66,7 @@ impl Decodable for bool {
     where
         Self: Sized,
     {
-        Ok(value.as_boolean().ok_or(DeError::ExpectedBoolean)?)
+        value.as_boolean().ok_or(DeError::ExpectedBoolean)
     }
 }
 
@@ -225,9 +225,9 @@ impl Decodable for u64 {
     }
     fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError> {
         let integer = Integer::decode(value, types)?;
-        Ok(integer.as_unsigned().ok_or(DeError::Message(
+        integer.as_unsigned().ok_or(DeError::Message(
             "Unable to represent an integer as u64".into(),
-        ))?)
+        ))
     }
 }
 
@@ -240,9 +240,9 @@ impl Decodable for i64 {
     }
     fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError> {
         let integer = Integer::decode(value, types)?;
-        Ok(integer.as_signed().ok_or(DeError::Message(
+        integer.as_signed().ok_or(DeError::Message(
             "Unable to represent an integer as i64".into(),
-        ))?)
+        ))
     }
 }
 

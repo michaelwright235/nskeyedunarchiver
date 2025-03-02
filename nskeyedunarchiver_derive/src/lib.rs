@@ -103,7 +103,7 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
     };
     let syn::Fields::Named(named_fields) = &cur_struct.fields else {
         return Err(Error::new(
-            cur_struct.fields.span().clone(),
+            cur_struct.fields.span(),
             "Only structs with named fields are supported",
         ));
     };
@@ -330,7 +330,7 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
     let enum_ident = &input.ident;
 
     let enum_attrs = MacroAttributes::try_from(input.attrs.as_slice())?;
-    if enum_attrs.bool_attrs.len() != 0 || enum_attrs.str_attrs.len() != 0 {
+    if !enum_attrs.bool_attrs.is_empty() || !enum_attrs.str_attrs.is_empty() {
         return Err(Error::new(
             input.span(),
             "Attributes for enums are not supported",
@@ -350,16 +350,16 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
         if field_attrs.bool_attrs.contains(&"skip".to_string()) {
             continue;
         }
-        if field_attrs.str_attrs.len() != 0 {
+        if !field_attrs.str_attrs.is_empty() {
             return Err(Error::new(
-                v.attrs[0].path().span().clone(),
+                v.attrs[0].path().span(),
                 "Only `skip` attribute is valid for enum variants",
             ));
         }
 
-        if *&v.fields.len() != 1 {
+        if v.fields.len() != 1 {
             return Err(Error::new(
-                v.fields.span().clone(),
+                v.fields.span(),
                 "An enum variant can only have one field",
             ));
         }
@@ -392,9 +392,9 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
 
         let field_attrs = MacroAttributes::try_from(v.attrs.as_slice())?;
 
-        if field_attrs.str_attrs.len() != 0 {
+        if !field_attrs.str_attrs.is_empty() {
             return Err(Error::new(
-                v.attrs[0].path().span().clone(),
+                v.attrs[0].path().span(),
                 "This attribute is not supported for enum variants",
             ));
         }
@@ -460,7 +460,7 @@ fn decodable_impl(input: DeriveInput) -> Result<TokenStream> {
         syn::Data::Struct(_) => decodable_struct(&input),
         syn::Data::Enum(_) => decodable_enum(&input),
         _ => Err(Error::new(
-            input.ident.span().clone(),
+            input.ident.span(),
             "Only structs and enums are supported",
         ))
     }

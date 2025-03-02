@@ -4,7 +4,8 @@
 use std::collections::HashMap;
 
 use nskeyedunarchiver::{
-    de::{Decodable, NSData, NSDictionary}, object_types, NSKeyedUnarchiver, ObjectValue
+    de::{Decodable, NSData, NSDictionary},
+    object_types, NSKeyedUnarchiver, ObjectValue,
 };
 use nskeyedunarchiver_derive::Decodable;
 

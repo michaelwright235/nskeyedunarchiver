@@ -97,13 +97,16 @@ impl std::fmt::Debug for dyn Decodable {
     }
 }
 
+type IsTypeOfFnType = fn(classes: &[String]) -> bool;
+type DecodeAsAnyFnType =
+    fn(obj: ValueRef, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError>;
+
 #[doc(hidden)]
 #[derive(PartialEq, Clone, Debug)]
 pub struct ObjectType {
     type_id: TypeId,
-    is_type_of_fn: fn(classes: &[String]) -> bool,
-    decode_as_any_fn:
-        fn(obj: ValueRef, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError>,
+    is_type_of_fn: IsTypeOfFnType,
+    decode_as_any_fn: DecodeAsAnyFnType,
 }
 
 impl ObjectType {

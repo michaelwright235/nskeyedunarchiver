@@ -9,9 +9,7 @@ use plist::{Dictionary as PlistDictionary, Value as PlistValue};
 macro_rules! get_key {
     ($self:ident, $key:ident, $typ:literal) => {{
         if !$self.contains_key($key) {
-            return Err(
-                DeError::MissingObjectKey($self.class().into(), $key.into())
-        );
+            return Err(DeError::MissingObjectKey($self.class().into(), $key.into()));
         }
         let raw_object = $self.fields.get($key).unwrap();
         paste::paste! {
@@ -113,7 +111,7 @@ impl Object {
     /// references to a string value. This function just makes it easy to access.
     pub fn decode_string(&self, key: &str) -> Result<String, DeError> {
         let obj = get_key!(self, key, "ref");
-        String::decode(obj.clone(), &vec![])
+        String::decode(obj.clone(), &[])
     }
 
     /// Tries to decode a value as an object with a given `key` and returns a
@@ -169,9 +167,7 @@ impl Object {
     /// Returns a [DeError] if a value doesn't exist.
     pub fn is_null_ref(&self, key: &str) -> Result<bool, DeError> {
         if !self.contains_key(key) {
-            return Err(
-                DeError::MissingObjectKey(self.class().into(), key.into())
-            );
+            return Err(DeError::MissingObjectKey(self.class().into(), key.into()));
         }
         Ok(matches!(
             self.fields.get(key).unwrap(),
@@ -225,14 +221,16 @@ impl Object {
                         }
                     }
                     self.fields.insert(key, ObjectValue::RefArray(ref_arr));
-                },
+                }
                 UninitRefs::RawRef(raw_ref) => {
                     if let Some(obj_ref) = tree.get(raw_ref as usize) {
                         self.fields.insert(key, ObjectValue::Ref(obj_ref.clone()));
                     } else {
-                        return Err(Error::IncorrectFormat(format!("Incorrent object uid: {raw_ref}")));
+                        return Err(Error::IncorrectFormat(format!(
+                            "Incorrent object uid: {raw_ref}"
+                        )));
                     }
-                },
+                }
             }
         }
         Ok(())
@@ -286,7 +284,7 @@ impl Object {
             classes: None,
             classes_uid,
             fields,
-            uninit_fields: Some(uninit_fields)
+            uninit_fields: Some(uninit_fields),
         })
     }
 }
