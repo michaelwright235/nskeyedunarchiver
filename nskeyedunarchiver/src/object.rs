@@ -1,8 +1,8 @@
-use std::{borrow::Cow, collections::HashMap};
+use std::collections::HashMap;
 
 use crate::{
     de::{value_ref_to_any, Decodable, ObjectType},
-    object_types_empty, DeError, Error, Integer, ValueRef, NULL_OBJECT_REFERENCE_NAME,
+    DeError, Error, Integer, ValueRef, NULL_OBJECT_REFERENCE_NAME,
 };
 use plist::{Dictionary as PlistDictionary, Value as PlistValue};
 
@@ -34,7 +34,7 @@ macro_rules! get_key {
     }};
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 enum UninitRefs {
     RawRefArray(Vec<u64>), // vector of uids
     RawRef(u64),
@@ -60,14 +60,14 @@ impl ObjectValue {
             ObjectValue::Real(_) => "f64",
             ObjectValue::Boolean(_) => "boolean",
             ObjectValue::Data(_) => "data",
-            ObjectValue::RefArray(_) => "array of objects references",
+            ObjectValue::RefArray(_) => "array of object references",
             ObjectValue::Ref(_) => "object reference",
             ObjectValue::NullRef => "null reference",
         }
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Object {
     classes: Option<ValueRef>,
     classes_uid: u64,
@@ -111,44 +111,9 @@ impl Object {
     ///
     /// NSKeyedArchive objects don't contain plain strings, rather
     /// references to a string value. This function just makes it easy to access.
-    pub fn decode_string(&self, key: &str) -> Result<Cow<str>, DeError> {
-        // In rare cases strings are encoded this way
-        if let Some(ObjectValue::String(s)) = self.fields.get("NS.string") {
-            return Ok(Cow::Borrowed(s));
-        }
-        // As far as I can tell all strings inside of objects are
-        // linked with UIDs
+    pub fn decode_string(&self, key: &str) -> Result<String, DeError> {
         let obj = get_key!(self, key, "ref");
-
-        // In NIB Archives strings are encoded as objects
-        if let Some(nsstring) = obj.as_object() {
-            if nsstring.class() != "NSString" && nsstring.class() != "NSMutableString" {
-                return Err(DeError::Message(format!(
-                    "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
-                    nsstring.class(),
-                    self.class(),
-                    "NSString or NSMutableString",
-                    key
-                )));
-            }
-            return Ok(Cow::Owned(String::decode(
-                obj.clone(),
-                &object_types_empty!(String),
-            )?));
-        }
-
-        // In regular keyed archives strings are inlined
-        let Some(string) = obj.as_string() else {
-            return Err(DeError::Message(format!(
-                "Incorrect value type of '{0}' for object '{1}'. Expected '{2}' for key '{3}'",
-                "object",
-                self.class(),
-                "string",
-                key
-            )));
-        };
-
-        Ok(Cow::Borrowed(string))
+        String::decode(obj.clone(), &vec![])
     }
 
     /// Tries to decode a value as an object with a given `key` and returns a

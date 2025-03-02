@@ -25,7 +25,7 @@ impl ObjectMember for String {
     where
         Self: Sized + 'static,
     {
-        obj.decode_string(key).map(|v| v.into_owned())
+        obj.decode_string(key)
     }
 
     fn as_object_type() -> Option<ObjectType>
@@ -267,3 +267,4 @@ impl<T: ObjectMember> ObjectMember for Option<T> {
         None
     }
 }
+

@@ -1,5 +1,5 @@
 use super::{value_ref_to_any, Decodable, ObjectType};
-use crate::{as_object, DeError, Integer, UniqueId, ValueRef};
+use crate::{as_object, DeError, Integer, ObjectValue, UniqueId, ValueRef};
 use std::collections::HashMap;
 
 impl Decodable for String {
@@ -21,10 +21,19 @@ impl Decodable for String {
         }
 
         let obj = value.as_object().unwrap();
+        if obj.class() != "NSString" && obj.class() != "NSMutableString" {
+            return Err(DeError::Message(format!(
+                "Incorrect value type of '{0}' for object '{1}'. Expected '{2}'",
+                obj.class(),
+                "NSString",
+                "NSString or NSMutableString",
+            )));
+        }
+
         if !obj.contains_key("NS.bytes") && !obj.contains_key("NS.string") {
             return Err(DeError::ExpectedString);
         }
-        let s = if let Ok(data) = obj.decode_data("NS.bytes") {
+        let s = if let Some(ObjectValue::Data(data)) = obj.as_map().get("NS.bytes") {
             let parsed = String::from_utf8(data.to_vec());
             if let Err(e) = parsed {
                 return Err(DeError::Message(format!(
@@ -32,8 +41,8 @@ impl Decodable for String {
                 )));
             }
             parsed.unwrap()
-        } else if let Ok(data) = obj.decode_string("NS.string") {
-            data.into_owned()
+        } else if let Some(ObjectValue::String(data)) = obj.as_map().get("NS.string") {
+            data.clone()
         } else {
             return Err(DeError::ExpectedString);
         };
