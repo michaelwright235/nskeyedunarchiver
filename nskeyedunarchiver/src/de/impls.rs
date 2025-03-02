@@ -1,5 +1,5 @@
 use super::{value_ref_to_any, Decodable, ObjectType};
-use crate::{as_object, DeError, Integer, ValueRef};
+use crate::{as_object, DeError, Integer, UniqueId, ValueRef};
 use std::collections::HashMap;
 
 impl Decodable for String {
@@ -134,6 +134,26 @@ impl Decodable for ValueRef {
         Self: Sized,
     {
         Ok(value)
+    }
+}
+
+impl Decodable for UniqueId {
+    fn is_type_of(_classes: &[String]) -> bool
+    where
+        Self: Sized,
+    {
+        false
+    }
+
+    fn class(&self) -> &str {
+        ""
+    }
+
+    fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError>
+    where
+        Self: Sized,
+    {
+        Ok(value.unique_id)
     }
 }
 
