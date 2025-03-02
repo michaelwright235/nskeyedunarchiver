@@ -35,7 +35,13 @@ macro_rules! get_key {
 }
 
 #[derive(Debug, PartialEq)]
-enum ObjectValue {
+enum UninitRefs {
+    RawRefArray(Vec<u64>), // vector of uids
+    RawRef(u64),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ObjectValue {
     String(String),
     Integer(Integer),
     Real(f64),
@@ -44,11 +50,8 @@ enum ObjectValue {
     RefArray(Vec<ValueRef>),
     Ref(ValueRef),
     NullRef,
-
-    // Only used when creating an object
-    RawRefArray(Vec<u64>), // vector of uids
-    RawRef(u64),           // uid
 }
+
 impl ObjectValue {
     pub fn as_plain_type(&self) -> &'static str {
         match self {
@@ -60,8 +63,6 @@ impl ObjectValue {
             ObjectValue::RefArray(_) => "array of objects references",
             ObjectValue::Ref(_) => "object reference",
             ObjectValue::NullRef => "null reference",
-            ObjectValue::RawRefArray(_) => todo!(),
-            ObjectValue::RawRef(_) => todo!(),
         }
     }
 }
@@ -71,6 +72,7 @@ pub struct Object {
     classes: Option<ValueRef>,
     classes_uid: u64,
     fields: HashMap<String, ObjectValue>,
+    uninit_fields: Option<HashMap<String, UninitRefs>>,
 }
 
 impl Object {
@@ -240,26 +242,28 @@ impl Object {
             )));
         }
 
-        for value in self.fields.values_mut() {
-            if let ObjectValue::RawRef(r) = value {
-                if let Some(obj_ref) = tree.get(*r as usize) {
-                    *value = ObjectValue::Ref(obj_ref.clone());
-                } else {
-                    return Err(Error::IncorrectFormat(format!("Incorrent object uid: {r}")));
-                }
-            }
-            if let ObjectValue::RawRefArray(arr) = value {
-                let mut ref_arr = Vec::with_capacity(arr.len());
-                for item in arr {
-                    if let Some(obj_ref) = tree.get(*item as usize) {
-                        ref_arr.push(obj_ref.clone())
-                    } else {
-                        return Err(Error::IncorrectFormat(format!(
-                            "Incorrent object uid: {item}"
-                        )));
+        for (key, value) in self.uninit_fields.take().unwrap() {
+            match value {
+                UninitRefs::RawRefArray(raw_ref_array) => {
+                    let mut ref_arr = Vec::with_capacity(raw_ref_array.len());
+                    for item in raw_ref_array {
+                        if let Some(obj_ref) = tree.get(item as usize) {
+                            ref_arr.push(obj_ref.clone())
+                        } else {
+                            return Err(Error::IncorrectFormat(format!(
+                                "Incorrent object uid: {item}"
+                            )));
+                        }
                     }
-                }
-                *value = ObjectValue::RefArray(ref_arr);
+                    self.fields.insert(key, ObjectValue::RefArray(ref_arr));
+                },
+                UninitRefs::RawRef(raw_ref) => {
+                    if let Some(obj_ref) = tree.get(raw_ref as usize) {
+                        self.fields.insert(key, ObjectValue::Ref(obj_ref.clone()));
+                    } else {
+                        return Err(Error::IncorrectFormat(format!("Incorrent object uid: {raw_ref}")));
+                    }
+                },
             }
         }
         Ok(())
@@ -269,6 +273,7 @@ impl Object {
         // unwrapping is safe, we previously check it with is_container()
         let classes_uid = dict.remove("$class").unwrap().into_uid().unwrap().get();
         let mut fields = HashMap::with_capacity(dict.len());
+        let mut uninit_fields = HashMap::with_capacity(dict.len());
         for (key, obj) in dict {
             let decoded_obj = if let Some(s) = obj.as_string() {
                 if s == NULL_OBJECT_REFERENCE_NAME {
@@ -295,9 +300,11 @@ impl Object {
                         arr_of_uids.push(val.into_uid().unwrap().get());
                     }
                 }
-                ObjectValue::RawRefArray(arr_of_uids)
+                uninit_fields.insert(key, UninitRefs::RawRefArray(arr_of_uids));
+                continue;
             } else if obj.as_uid().is_some() {
-                ObjectValue::RawRef(obj.into_uid().unwrap().get())
+                uninit_fields.insert(key, UninitRefs::RawRef(obj.into_uid().unwrap().get()));
+                continue;
             } else {
                 return Err(Error::IncorrectFormat(format!(
                     "Enexpected object (uid: {classes_uid}) value type: {:?}",
@@ -310,6 +317,7 @@ impl Object {
             classes: None,
             classes_uid,
             fields,
+            uninit_fields: Some(uninit_fields)
         })
     }
 }
