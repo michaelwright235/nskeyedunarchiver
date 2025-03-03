@@ -1,7 +1,7 @@
 use std::rc::{Rc, Weak};
 
 use nskeyedunarchiver::de::{Decodable, NSArray, NSData, NSDictionary};
-use nskeyedunarchiver::{object_types, ArchiveValue, Integer, NSKeyedUnarchiver, ObjectValue, ValueRef};
+use nskeyedunarchiver::{object_types, ArchiveValue, Integer, NSKeyedUnarchiver, ValueRef};
 
 const PLIST_PATH: &str = "./tests_resources/plists/";
 
@@ -29,7 +29,7 @@ fn check_rc_strong_count(weak_refs: &[Weak<ArchiveValue>]) {
 fn plain_string() {
     // -- String: "Some string!"
     let (root, weak_refs) = open_file("plainString.plist");
-    let decoded_string = String::decode(&ObjectValue::Ref(root), &object_types!()).unwrap();
+    let decoded_string = String::decode(&root.into(), &object_types!()).unwrap();
     check_rc_strong_count(&weak_refs);
     assert_eq!(decoded_string, "Some string!");
 }
@@ -44,7 +44,7 @@ fn simple_array() {
     //       -- String: "innerValue4"
 
     let (root, weak_refs) = open_file("simpleArray.plist");
-    let mut decoded_data = NSArray::decode(&ObjectValue::Ref(root), &object_types!()).unwrap();
+    let mut decoded_data = NSArray::decode(&root.into(), &object_types!()).unwrap();
     let parent0: String = decoded_data.remove_as_object::<String>(0).unwrap();
     assert_eq!(parent0.as_str(), "value1");
     let parent1: String = decoded_data.remove_as_object::<String>(0).unwrap();
@@ -71,7 +71,7 @@ fn simple_dict() {
     //                      -- Integer: 3
 
     let (root, weak_refs) = open_file("simpleDict.plist");
-    let mut decoded_data = NSDictionary::decode(&ObjectValue::Ref(root), &object_types!()).unwrap();
+    let mut decoded_data = NSDictionary::decode(&root.into(), &object_types!()).unwrap();
 
     let value1: Box<String> = decoded_data
         .remove_as_object::<String>("First key")
@@ -98,7 +98,7 @@ fn simple_dict() {
 #[test]
 fn ns_data() {
     let (root, weak_refs) = open_file("nsData.plist");
-    let decoded_data = NSData::decode(&ObjectValue::Ref(root), &object_types!(NSData)).unwrap();
+    let decoded_data = NSData::decode(&root.into(), &object_types!(NSData)).unwrap();
     let s = String::from_utf8(decoded_data.into_inner()).unwrap();
     assert_eq!(s, "Some data!");
     check_rc_strong_count(&weak_refs);

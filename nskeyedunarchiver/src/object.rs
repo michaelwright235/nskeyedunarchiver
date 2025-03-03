@@ -65,6 +65,18 @@ impl ObjectValue {
     }
 }
 
+impl From<ValueRef> for ObjectValue {
+    fn from(value_ref: ValueRef) -> Self {
+        ObjectValue::Ref(value_ref)
+    }
+}
+
+impl From<&ValueRef> for ObjectValue {
+    fn from(value_ref: &ValueRef) -> Self {
+        ObjectValue::Ref(value_ref.clone())
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Object {
     classes: Option<ValueRef>,
