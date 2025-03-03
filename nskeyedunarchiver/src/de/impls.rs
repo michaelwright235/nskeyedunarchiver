@@ -146,9 +146,9 @@ impl<T: Decodable> Decodable for Vec<T> {
             return Err(DeError::ExpectedObject);
         };
         let obj = value.as_object().ok_or(DeError::ExpectedObject)?;
-        if !NSArray::is_type_of(obj.classes()) {
+        /* if !NSArray::is_type_of(obj.classes()) {
             return Err(DeError::Message("NSArray: not an array".to_string()));
-        }
+        } */
         let Ok(inner_objs) = obj.decode_array("NS.objects") else {
             return Err(DeError::Message(
                 "NSArray: Expected array of objects".to_string(),
@@ -352,6 +352,43 @@ impl Decodable for i64 {
     }
 }
 
+// TODO: A HashMap key should implement Eq and Hash. It's not possible for any Rust struct,
+// so some amount dicts aren't decodable.
+impl<K: Decodable + std::hash::Hash + Eq, V: Decodable> Decodable for HashMap<K, V> {
+    fn is_type_of(_classes: &[String]) -> bool
+    where
+        Self: Sized {
+        false
+    }
+
+    fn class(&self) -> &str {
+        ""
+    }
+
+    fn decode(value: &ObjectValue, types: &[ObjectType]) -> Result<Self, DeError>
+    where
+        Self: Sized {
+            let obj = as_object!(value)?;
+            let raw_keys = obj.decode_array("NS.keys")?;
+            let mut keys = Vec::with_capacity(raw_keys.len());
+            for key in raw_keys {
+                keys.push(K::decode(&key.into(), types)?);
+            }
+            let mut objects = Vec::<V>::decode(value, types)?;
+
+            if keys.len() != objects.len() {
+                return Err(DeError::Message(
+                    "NSDictionary: The number of keys is not equal to the number of values".to_string(),
+                ));
+            }
+            let mut hashmap = HashMap::with_capacity(keys.len());
+            for _ in 0..keys.len() {
+                hashmap.insert(keys.pop().unwrap(), objects.pop().unwrap());
+            }
+            Ok(hashmap)
+    }
+}
+
 macro_rules! class_wrapper {
     ($name:ident, $dataType:ty) => {
         impl $name {
@@ -531,6 +568,7 @@ impl From<NSSet> for NSArray {
     }
 }
 
+// TODO: A key of NSDictionary may be an any object, not only a string.
 #[derive(Debug)]
 pub struct NSDictionary {
     data: HashMap<String, Box<dyn Decodable>>,

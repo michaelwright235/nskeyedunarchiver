@@ -79,6 +79,12 @@ fn note() {
     assert_eq!(note, decoded);
 }
 
+#[derive(Decodable, Debug, PartialEq)]
+enum DictMember {
+    String(String),
+    IntArray(Vec<i64>)
+}
+
 #[test]
 fn nsaffine_transform() {
     let unarchiver =
@@ -96,4 +102,17 @@ fn nsmutable_attributed_string() {
     let obj = unarchiver.top().get("root").unwrap().clone();
     let decoded = NSMutableAttributedString::decode(&ObjectValue::Ref(obj), &object_types!(NSColor)).unwrap();
     println!("{decoded:#?}")
+}
+
+#[test]
+fn simple_dict_derive() {
+    let unarchiver = NSKeyedUnarchiver::from_file("./tests_resources/plists/simpleDict.plist").unwrap();
+    let root = unarchiver.top().get("root").unwrap().clone();
+    let decoded_data = HashMap::<String, DictMember>::decode(&root.into(), &object_types!()).unwrap();
+    let dict = HashMap::from([
+        ("First key".to_string(), DictMember::String("First value".to_string())),
+        ("Second key".to_string(), DictMember::String("Second value".to_string())),
+        ("Array key".to_string(), DictMember::IntArray(vec![1, 2, 3])),
+    ]);
+    assert_eq!(decoded_data, dict);
 }
