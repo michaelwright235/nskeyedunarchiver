@@ -27,11 +27,14 @@ pub trait Decodable: Downcast {
 
     #[doc(hidden)]
     /// This is an internal method that usually shouldn't be overwritten.
-    fn decode_as_any(value: &ObjectValue, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError>
+    fn decode_as_any(
+        value: &ObjectValue,
+        types: &[ObjectType],
+    ) -> Result<Box<dyn Decodable>, DeError>
     where
         Self: Sized + 'static,
     {
-        Ok(Box::new(Self::decode(&value, types)?) as Box<dyn Decodable>)
+        Ok(Box::new(Self::decode(value, types)?) as Box<dyn Decodable>)
     }
 
     #[doc(hidden)]
@@ -66,7 +69,10 @@ pub trait Decodable: Downcast + std::fmt::Debug {
 
     #[doc(hidden)]
     /// This is an internal method that usually shouldn't be overwritten.
-    fn decode_as_any(value: &ObjectValue, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError>
+    fn decode_as_any(
+        value: &ObjectValue,
+        types: &[ObjectType],
+    ) -> Result<Box<dyn Decodable>, DeError>
     where
         Self: Sized + 'static,
     {
@@ -175,7 +181,7 @@ pub fn value_ref_to_any(
     let mut result = None;
     for typ in types {
         if typ.is_type_of(classes) {
-            result = Some(typ.decode_as_any(&&ObjectValue::Ref(value_ref.clone()), types));
+            result = Some(typ.decode_as_any(&value_ref.clone().into(), types));
         }
     }
     match result {

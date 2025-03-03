@@ -86,8 +86,9 @@ impl Decodable for bool {
     }
 
     fn as_object_type() -> Option<ObjectType>
-        where
-            Self: Sized + 'static, {
+    where
+        Self: Sized + 'static,
+    {
         None
     }
 }
@@ -121,9 +122,10 @@ impl Decodable for Vec<u8> {
 
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized + 'static, {
-    None
-}
+        Self: Sized + 'static,
+    {
+        None
+    }
 }
 
 impl<T: Decodable> Decodable for Vec<T> {
@@ -166,9 +168,10 @@ impl<T: Decodable> Decodable for Vec<T> {
 
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized + 'static, {
-    None
-}
+        Self: Sized + 'static,
+    {
+        None
+    }
 }
 
 impl Decodable for ValueRef {
@@ -195,9 +198,10 @@ impl Decodable for ValueRef {
 
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized + 'static, {
-    None
-}
+        Self: Sized + 'static,
+    {
+        None
+    }
 }
 
 impl Decodable for UniqueId {
@@ -224,9 +228,10 @@ impl Decodable for UniqueId {
 
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized + 'static, {
-    None
-}
+        Self: Sized + 'static,
+    {
+        None
+    }
 }
 
 impl<T: Decodable> Decodable for Option<T> {
@@ -252,7 +257,8 @@ impl<T: Decodable> Decodable for Option<T> {
 
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized + 'static, {
+        Self: Sized + 'static,
+    {
         None
     }
 }
@@ -279,7 +285,8 @@ impl Decodable for f64 {
 
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized + 'static, {
+        Self: Sized + 'static,
+    {
         None
     }
 }
@@ -305,7 +312,8 @@ impl Decodable for Integer {
 
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized + 'static, {
+        Self: Sized + 'static,
+    {
         None
     }
 }
@@ -326,7 +334,8 @@ impl Decodable for u64 {
 
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized + 'static, {
+        Self: Sized + 'static,
+    {
         None
     }
 }
@@ -347,7 +356,8 @@ impl Decodable for i64 {
 
     fn as_object_type() -> Option<ObjectType>
     where
-        Self: Sized + 'static, {
+        Self: Sized + 'static,
+    {
         None
     }
 }
@@ -357,7 +367,8 @@ impl Decodable for i64 {
 impl<K: Decodable + std::hash::Hash + Eq, V: Decodable> Decodable for HashMap<K, V> {
     fn is_type_of(_classes: &[String]) -> bool
     where
-        Self: Sized {
+        Self: Sized,
+    {
         false
     }
 
@@ -367,25 +378,26 @@ impl<K: Decodable + std::hash::Hash + Eq, V: Decodable> Decodable for HashMap<K,
 
     fn decode(value: &ObjectValue, types: &[ObjectType]) -> Result<Self, DeError>
     where
-        Self: Sized {
-            let obj = as_object!(value)?;
-            let raw_keys = obj.decode_array("NS.keys")?;
-            let mut keys = Vec::with_capacity(raw_keys.len());
-            for key in raw_keys {
-                keys.push(K::decode(&key.into(), types)?);
-            }
-            let mut objects = Vec::<V>::decode(value, types)?;
+        Self: Sized,
+    {
+        let obj = as_object!(value)?;
+        let raw_keys = obj.decode_array("NS.keys")?;
+        let mut keys = Vec::with_capacity(raw_keys.len());
+        for key in raw_keys {
+            keys.push(K::decode(&key.into(), types)?);
+        }
+        let mut objects = Vec::<V>::decode(value, types)?;
 
-            if keys.len() != objects.len() {
-                return Err(DeError::Message(
-                    "NSDictionary: The number of keys is not equal to the number of values".to_string(),
-                ));
-            }
-            let mut hashmap = HashMap::with_capacity(keys.len());
-            for _ in 0..keys.len() {
-                hashmap.insert(keys.pop().unwrap(), objects.pop().unwrap());
-            }
-            Ok(hashmap)
+        if keys.len() != objects.len() {
+            return Err(DeError::Message(
+                "NSDictionary: The number of keys is not equal to the number of values".to_string(),
+            ));
+        }
+        let mut hashmap = HashMap::with_capacity(keys.len());
+        for _ in 0..keys.len() {
+            hashmap.insert(keys.pop().unwrap(), objects.pop().unwrap());
+        }
+        Ok(hashmap)
     }
 }
 
