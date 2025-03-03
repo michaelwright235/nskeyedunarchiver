@@ -53,6 +53,7 @@ struct Note {
     #[decodable(default)]
     published: bool,
     array: Vec<ArrayMember>,
+    not_present: Option<String>,
     #[decodable(unhandled)]
     unhandled: HashMap<String, ObjectValue>,
 }
@@ -61,7 +62,7 @@ struct Note {
 fn note() {
     let unarchiver = NSKeyedUnarchiver::from_file("./tests_resources/plists/note.plist").unwrap();
     let obj = unarchiver.top().get("root").unwrap().clone();
-    let decoded = Note::decode(obj, &object_types!()).unwrap();
+    let decoded = Note::decode(&ObjectValue::Ref(obj), &object_types!()).unwrap();
 
     let note = Note {
         author: "Michael Wright".into(),
@@ -72,6 +73,7 @@ fn note() {
             ArrayMember::Integer(42),
             ArrayMember::Boolean(true),
         ],
+        not_present: None,
         unhandled: HashMap::new(),
     };
     assert_eq!(note, decoded);
@@ -82,7 +84,7 @@ fn nsaffine_transform() {
     let unarchiver =
         NSKeyedUnarchiver::from_file("./tests_resources/plists/NSAffineTransform.plist").unwrap();
     let obj = unarchiver.top().get("root").unwrap().clone();
-    let decoded = NSAffineTransform::decode(obj, &vec![]).unwrap();
+    let decoded = NSAffineTransform::decode(&ObjectValue::Ref(obj), &vec![]).unwrap();
     println!("{decoded:?}")
 }
 
@@ -92,6 +94,6 @@ fn nsmutable_attributed_string() {
         NSKeyedUnarchiver::from_file("./tests_resources/plists/NSMutableAttributedString.plist")
             .unwrap();
     let obj = unarchiver.top().get("root").unwrap().clone();
-    let decoded = NSMutableAttributedString::decode(obj, &object_types!(NSColor)).unwrap();
+    let decoded = NSMutableAttributedString::decode(&ObjectValue::Ref(obj), &object_types!(NSColor)).unwrap();
     println!("{decoded:#?}")
 }

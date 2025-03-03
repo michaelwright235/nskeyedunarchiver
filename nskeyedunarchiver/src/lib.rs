@@ -339,7 +339,6 @@ impl NSKeyedUnarchiver {
                             return Err(Error::IncorrectFormat("Incorrect Classes object".into()));
                         }
                     } else {
-                        //println!("{:?}", obj);
                         return Err(Error::IncorrectFormat("Unexpected object type".into()));
                     }
                 }

@@ -110,8 +110,10 @@ impl Object {
     /// NSKeyedArchive objects don't contain plain strings, rather
     /// references to a string value. This function just makes it easy to access.
     pub fn decode_string(&self, key: &str) -> Result<String, DeError> {
-        let obj = get_key!(self, key, "ref");
-        String::decode(obj.clone(), &[])
+        if self.contains_key(key) {
+            return Err(DeError::MissingObjectKey(self.class().into(), key.into()));
+        }
+        String::decode(self.fields.get(key).unwrap(), &[])
     }
 
     /// Tries to decode a value as an object with a given `key` and returns a

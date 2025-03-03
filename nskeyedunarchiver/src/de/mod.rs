@@ -2,7 +2,7 @@ mod impls;
 use downcast_rs::{impl_downcast, Downcast};
 pub use impls::*;
 
-use crate::{DeError, Object, ValueRef};
+use crate::{DeError, ObjectValue, ValueRef};
 use std::any::TypeId;
 
 #[cfg(not(feature = "debug_decodable"))]
@@ -21,17 +21,17 @@ pub trait Decodable: Downcast {
     fn class(&self) -> &str;
 
     /// The main decoding method of your structure
-    fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError>
+    fn decode(value: &ObjectValue, types: &[ObjectType]) -> Result<Self, DeError>
     where
         Self: Sized;
 
     #[doc(hidden)]
     /// This is an internal method that usually shouldn't be overwritten.
-    fn decode_as_any(value: ValueRef, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError>
+    fn decode_as_any(value: &ObjectValue, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError>
     where
         Self: Sized + 'static,
     {
-        Ok(Box::new(Self::decode(value, types)?) as Box<dyn Decodable>)
+        Ok(Box::new(Self::decode(&value, types)?) as Box<dyn Decodable>)
     }
 
     #[doc(hidden)]
@@ -41,18 +41,6 @@ pub trait Decodable: Downcast {
         Self: Sized + 'static,
     {
         Some(ObjectType::new::<Self>())
-    }
-
-    #[doc(hidden)]
-    fn get_from_object(
-        obj: &Object,
-        key: &str,
-        types: &[ObjectType],
-    ) -> std::result::Result<Self, DeError>
-    where
-        Self: Sized + 'static
-    {
-        obj.decode_object_as::<Self>(key, types)
     }
 }
 
@@ -72,13 +60,13 @@ pub trait Decodable: Downcast + std::fmt::Debug {
     fn class(&self) -> &str;
 
     /// The main decoding method of your structure
-    fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError>
+    fn decode(value: &ObjectValue, types: &[ObjectType]) -> Result<Self, DeError>
     where
         Self: Sized;
 
     #[doc(hidden)]
     /// This is an internal method that usually shouldn't be overwritten.
-    fn decode_as_any(value: ValueRef, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError>
+    fn decode_as_any(value: &ObjectValue, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError>
     where
         Self: Sized + 'static,
     {
@@ -93,18 +81,6 @@ pub trait Decodable: Downcast + std::fmt::Debug {
     {
         Some(ObjectType::new::<Self>())
     }
-
-    #[doc(hidden)]
-    fn get_from_object(
-        obj: &Object,
-        key: &str,
-        types: &[ObjectType],
-    ) -> std::result::Result<Self, DeError>
-    where
-        Self: Sized + 'static
-    {
-        obj.decode_object_as::<Self>(key, types)
-    }
 }
 
 impl_downcast!(Decodable);
@@ -118,7 +94,7 @@ impl std::fmt::Debug for dyn Decodable {
 
 type IsTypeOfFnType = fn(classes: &[String]) -> bool;
 type DecodeAsAnyFnType =
-    fn(obj: ValueRef, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError>;
+    fn(obj: &ObjectValue, types: &[ObjectType]) -> Result<Box<dyn Decodable>, DeError>;
 
 #[doc(hidden)]
 #[derive(PartialEq, Clone, Debug)]
@@ -144,7 +120,7 @@ impl ObjectType {
     }
     pub fn decode_as_any(
         &self,
-        obj: ValueRef,
+        obj: &ObjectValue,
         types: &[ObjectType],
     ) -> Result<Box<dyn Decodable>, DeError> {
         (self.decode_as_any_fn)(obj, types)
@@ -181,7 +157,10 @@ macro_rules! object_types_empty {
 #[macro_export]
 macro_rules! as_object {
     ($obj_ref:ident) => {{
-        $obj_ref.as_object().ok_or($crate::DeError::ExpectedObject)
+        let $crate::ObjectValue::Ref(value) = $obj_ref else {
+            return Err($crate::DeError::ExpectedObject);
+        };
+        value.as_object().ok_or($crate::DeError::ExpectedObject)
     }};
 }
 
@@ -196,7 +175,7 @@ pub fn value_ref_to_any(
     let mut result = None;
     for typ in types {
         if typ.is_type_of(classes) {
-            result = Some(typ.decode_as_any(value_ref.clone(), types));
+            result = Some(typ.decode_as_any(&&ObjectValue::Ref(value_ref.clone()), types));
         }
     }
     match result {

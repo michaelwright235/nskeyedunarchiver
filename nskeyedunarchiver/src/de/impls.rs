@@ -1,5 +1,5 @@
 use super::{value_ref_to_any, Decodable, ObjectType};
-use crate::{as_object, DeError, Integer, Object, ObjectValue, UniqueId, ValueRef};
+use crate::{as_object, DeError, Integer, ObjectValue, UniqueId, ValueRef};
 use std::collections::HashMap;
 
 impl Decodable for String {
@@ -9,14 +9,22 @@ impl Decodable for String {
     fn class(&self) -> &str {
         "NSString"
     }
-    fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
+    fn decode(value: &ObjectValue, _types: &[ObjectType]) -> Result<Self, DeError> {
         // A string can be encoded as a plain String type
-        if let Some(s) = value.as_string() {
+        if let ObjectValue::String(s) = value {
             return Ok(s.to_string());
         }
 
         // ... or as an Object with `NS.bytes` data or `NS.string` string (NIB Archives)
-        if value.as_object().is_none() {
+        let ObjectValue::Ref(value) = value else {
+            return Err(DeError::ExpectedString);
+        };
+
+        if let Some(s) = value.as_string() {
+            return Ok(s.into());
+        }
+
+        if !value.is_object() {
             return Err(DeError::ExpectedString);
         }
 
@@ -48,23 +56,6 @@ impl Decodable for String {
         };
         Ok(s)
     }
-
-    fn get_from_object(
-        obj: &Object,
-        key: &str,
-        _types: &[ObjectType],
-    ) -> std::result::Result<Self, DeError>
-    where
-        Self: Sized + 'static,
-    {
-        obj.decode_string(key)
-    }
-
-        fn as_object_type() -> Option<ObjectType>
-        where
-            Self: Sized + 'static, {
-        None
-    }
 }
 
 impl Decodable for bool {
@@ -79,21 +70,19 @@ impl Decodable for bool {
         ""
     }
 
-    fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError>
+    fn decode(value: &ObjectValue, _types: &[ObjectType]) -> Result<Self, DeError>
     where
         Self: Sized,
     {
-        value.as_boolean().ok_or(DeError::ExpectedBoolean)
-    }
-    fn get_from_object(
-        obj: &Object,
-        key: &str,
-        _types: &[ObjectType],
-    ) -> std::result::Result<Self, DeError>
-    where
-        Self: Sized + 'static,
-    {
-        obj.decode_bool(key)
+        if let ObjectValue::Boolean(value) = value {
+            return Ok(*value);
+        }
+        if let ObjectValue::Ref(value) = value {
+            if let Some(v) = value.as_boolean() {
+                return Ok(v);
+            }
+        }
+        Err(DeError::ExpectedBoolean)
     }
 
     fn as_object_type() -> Option<ObjectType>
@@ -115,21 +104,19 @@ impl Decodable for Vec<u8> {
         ""
     }
 
-    fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError>
+    fn decode(value: &ObjectValue, _types: &[ObjectType]) -> Result<Self, DeError>
     where
         Self: Sized,
     {
-        Ok(value.as_data().ok_or(DeError::ExpectedData)?.to_vec())
-    }
-    fn get_from_object(
-        obj: &Object,
-        key: &str,
-        _types: &[ObjectType],
-    ) -> std::result::Result<Self, DeError>
-    where
-        Self: Sized + 'static,
-    {
-        obj.decode_data(key).map(|v| v.to_vec())
+        if let ObjectValue::Data(value) = value {
+            return Ok(value.to_vec());
+        }
+        if let ObjectValue::Ref(value) = value {
+            if let Some(v) = value.as_data() {
+                return Ok(v.to_vec());
+            }
+        }
+        Err(DeError::ExpectedData)
     }
 
     fn as_object_type() -> Option<ObjectType>
@@ -151,10 +138,13 @@ impl<T: Decodable> Decodable for Vec<T> {
         ""
     }
 
-    fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError>
+    fn decode(value: &ObjectValue, types: &[ObjectType]) -> Result<Self, DeError>
     where
         Self: Sized,
     {
+        let ObjectValue::Ref(value) = value else {
+            return Err(DeError::ExpectedObject);
+        };
         let obj = value.as_object().ok_or(DeError::ExpectedObject)?;
         if !NSArray::is_type_of(obj.classes()) {
             return Err(DeError::Message("NSArray: not an array".to_string()));
@@ -166,23 +156,12 @@ impl<T: Decodable> Decodable for Vec<T> {
         };
         let mut result = Vec::with_capacity(inner_objs.len());
         for inner_obj in inner_objs {
-            result.push(T::decode(inner_obj.clone(), types)?);
+            result.push(T::decode(&ObjectValue::Ref(inner_obj.clone()), types)?);
         }
 
         /*let arr = NSArray::get_from_object(obj, key, types)?;
         arr.try_into_objects::<T>()*/
         Ok(result)
-    }
-    fn get_from_object(
-        obj: &Object,
-        key: &str,
-        types: &[ObjectType],
-    ) -> std::result::Result<Self, DeError>
-    where
-        Self: Sized + 'static,
-    {
-        let array = obj.decode_object(key)?;
-        Self::decode(array, types)
     }
 
     fn as_object_type() -> Option<ObjectType>
@@ -204,22 +183,14 @@ impl Decodable for ValueRef {
         ""
     }
 
-    fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError>
+    fn decode(value: &ObjectValue, _types: &[ObjectType]) -> Result<Self, DeError>
     where
         Self: Sized,
     {
-        Ok(value)
-    }
-
-    fn get_from_object(
-        obj: &Object,
-        key: &str,
-        _types: &[ObjectType],
-    ) -> std::result::Result<Self, DeError>
-    where
-        Self: Sized + 'static,
-    {
-        obj.decode_object(key)
+        let ObjectValue::Ref(value) = value else {
+            return Err(DeError::ExpectedObject);
+        };
+        Ok(value.clone())
     }
 
     fn as_object_type() -> Option<ObjectType>
@@ -241,22 +212,14 @@ impl Decodable for UniqueId {
         ""
     }
 
-    fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError>
+    fn decode(value: &ObjectValue, _types: &[ObjectType]) -> Result<Self, DeError>
     where
         Self: Sized,
     {
+        let ObjectValue::Ref(value) = value else {
+            return Err(DeError::ExpectedObject);
+        };
         Ok(value.unique_id)
-    }
-
-    fn get_from_object(
-        obj: &Object,
-        key: &str,
-        _types: &[ObjectType],
-    ) -> std::result::Result<Self, DeError>
-    where
-        Self: Sized + 'static,
-    {
-        obj.decode_object(key).map(|v| v.unique_id)
     }
 
     fn as_object_type() -> Option<ObjectType>
@@ -278,25 +241,13 @@ impl<T: Decodable> Decodable for Option<T> {
         ""
     }
 
-    fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError>
+    fn decode(value: &ObjectValue, types: &[ObjectType]) -> Result<Self, DeError>
     where
         Self: Sized,
     {
+        // None variant is handled in #[derive(Decodable)]
+        // Kinda hacky, but it works
         Ok(Some(T::decode(value, types)?))
-    }
-
-    fn get_from_object(
-        obj: &Object,
-        key: &str,
-        types: &[ObjectType],
-    ) -> std::result::Result<Self, DeError>
-    where
-        Self: Sized + 'static,
-    {
-        if !obj.contains_key(key) {
-            return Ok(None);
-        }
-        Ok(Some(T::get_from_object(obj, key, types)?))
     }
 
     fn as_object_type() -> Option<ObjectType>
@@ -313,22 +264,17 @@ impl Decodable for f64 {
     fn class(&self) -> &str {
         ""
     }
-    fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
-        let Some(float) = value.as_float() else {
-            return Err(DeError::ExpectedFloat);
-        };
-        Ok(float)
-    }
 
-    fn get_from_object(
-        obj: &Object,
-        key: &str,
-        _types: &[ObjectType],
-    ) -> std::result::Result<Self, DeError>
-    where
-        Self: Sized + 'static,
-    {
-        obj.decode_float(key).copied()
+    fn decode(value: &ObjectValue, _types: &[ObjectType]) -> Result<Self, DeError> {
+        if let ObjectValue::Real(value) = value {
+            return Ok(*value);
+        }
+        if let ObjectValue::Ref(value) = value {
+            if let Some(v) = value.as_float() {
+                return Ok(v);
+            }
+        }
+        Err(DeError::ExpectedFloat)
     }
 
     fn as_object_type() -> Option<ObjectType>
@@ -345,22 +291,16 @@ impl Decodable for Integer {
     fn class(&self) -> &str {
         ""
     }
-    fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
-        let Some(int) = value.as_integer() else {
-            return Err(DeError::ExpectedInteger);
-        };
-        Ok(*int)
-    }
-
-    fn get_from_object(
-        obj: &Object,
-        key: &str,
-        _types: &[ObjectType],
-    ) -> std::result::Result<Self, DeError>
-    where
-        Self: Sized + 'static,
-    {
-        obj.decode_integer(key).copied()
+    fn decode(value: &ObjectValue, _types: &[ObjectType]) -> Result<Self, DeError> {
+        if let ObjectValue::Integer(value) = value {
+            return Ok(*value);
+        }
+        if let ObjectValue::Ref(value) = value {
+            if let Some(v) = value.as_integer() {
+                return Ok(*v);
+            }
+        }
+        Err(DeError::ExpectedInteger)
     }
 
     fn as_object_type() -> Option<ObjectType>
@@ -377,26 +317,11 @@ impl Decodable for u64 {
     fn class(&self) -> &str {
         ""
     }
-    fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError> {
+    fn decode(value: &ObjectValue, types: &[ObjectType]) -> Result<Self, DeError> {
         let integer = Integer::decode(value, types)?;
         integer.as_unsigned().ok_or(DeError::Message(
             "Unable to represent an integer as u64".into(),
         ))
-    }
-
-    fn get_from_object(
-        obj: &Object,
-        key: &str,
-        _types: &[ObjectType],
-    ) -> std::result::Result<Self, DeError>
-    where
-        Self: Sized + 'static,
-    {
-        obj.decode_integer(key).and_then(|v| {
-            v.as_unsigned().ok_or(DeError::Message(
-                "Unable to represent an integer as u64".into(),
-            ))
-        })
     }
 
     fn as_object_type() -> Option<ObjectType>
@@ -413,26 +338,11 @@ impl Decodable for i64 {
     fn class(&self) -> &str {
         ""
     }
-    fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError> {
+    fn decode(value: &ObjectValue, types: &[ObjectType]) -> Result<Self, DeError> {
         let integer = Integer::decode(value, types)?;
         integer.as_signed().ok_or(DeError::Message(
             "Unable to represent an integer as i64".into(),
         ))
-    }
-
-    fn get_from_object(
-        obj: &Object,
-        key: &str,
-        _types: &[ObjectType],
-    ) -> std::result::Result<Self, DeError>
-    where
-        Self: Sized + 'static,
-    {
-        obj.decode_integer(key).and_then(|v| {
-            v.as_signed().ok_or(DeError::Message(
-                "Unable to represent an integer as i64".into(),
-            ))
-        })
     }
 
     fn as_object_type() -> Option<ObjectType>
@@ -503,7 +413,7 @@ impl Decodable for NSArray {
             "NSMutableArray"
         }
     }
-    fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError> {
+    fn decode(value: &ObjectValue, types: &[ObjectType]) -> Result<Self, DeError> {
         let obj = as_object!(value)?;
         let is_mutable = obj.class() == "NSMutableArray";
         let Ok(inner_objs) = obj.decode_array("NS.objects") else {
@@ -516,13 +426,13 @@ impl Decodable for NSArray {
         let mut decoded_objs = Vec::with_capacity(inner_objs.len());
         for obj in inner_objs {
             if obj.as_ref().as_string().is_some() {
-                let s = String::decode(obj.clone(), &[])?;
+                let s = String::decode(&ObjectValue::Ref(obj.clone()), &[])?;
                 decoded_objs.push(Box::new(s) as Box<dyn Decodable>);
             } else if obj.as_ref().as_integer().is_some() {
-                let i = Integer::decode(obj.clone(), &[])?;
+                let i = Integer::decode(&ObjectValue::Ref(obj.clone()), &[])?;
                 decoded_objs.push(Box::new(i) as Box<dyn Decodable>);
             } else if obj.as_ref().as_float().is_some() {
-                let f = f64::decode(obj.clone(), &[])?;
+                let f = f64::decode(&ObjectValue::Ref(obj.clone()), &[])?;
                 decoded_objs.push(Box::new(f) as Box<dyn Decodable>);
             } else if obj.as_ref().as_object().is_some() {
                 decoded_objs.push(value_ref_to_any(obj.clone(), types)?);
@@ -592,7 +502,7 @@ impl Decodable for NSSet {
             "NSMutableSet"
         }
     }
-    fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError> {
+    fn decode(value: &ObjectValue, types: &[ObjectType]) -> Result<Self, DeError> {
         let obj = as_object!(value)?;
         let is_mutable = obj.class() == "NSMutableSet";
         Ok(Self {
@@ -638,7 +548,7 @@ impl Decodable for NSDictionary {
             "NSMutableDictionary"
         }
     }
-    fn decode(value: ValueRef, types: &[ObjectType]) -> Result<Self, DeError> {
+    fn decode(value: &ObjectValue, types: &[ObjectType]) -> Result<Self, DeError> {
         let obj = as_object!(value)?;
         let is_mutable = obj.class() == "NSMutableDictionary";
         let raw_keys = obj.decode_array("NS.keys")?;
@@ -734,7 +644,7 @@ impl Decodable for NSData {
             "NSMutableData"
         }
     }
-    fn decode(value: ValueRef, _types: &[ObjectType]) -> Result<Self, DeError> {
+    fn decode(value: &ObjectValue, _types: &[ObjectType]) -> Result<Self, DeError> {
         let obj = as_object!(value)?;
         let is_mutable = obj.class() == "NSMutableData";
         let data = obj.decode_data("NS.data")?.to_vec();

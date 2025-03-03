@@ -239,18 +239,36 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
             if let syn::PathArguments::AngleBracketed(args) = &last_segment.arguments {
                 let a = args.to_token_stream();
                 let mut inner = quote! {
-                    #field_ident: #last_segment_ident::#a::get_from_object(value, #field_name, &extended_types)?
+                    #field_ident: {
+                        let v = value
+                            .as_map()
+                            .get(#field_name)
+                            .ok_or(nskeyedunarchiver::DeError::MissingObjectKey(value.class().into(), #field_name.into()))?;
+                        #last_segment_ident::#a::decode(v, &extended_types)?
+                    }
                 };
 
-                // Handle #[decodable(default)]
-                if field_attrs.bool_attrs.contains(&"default".to_string()) {
+                // This is hacky, it panics if there's a custom defined struct/enum
+                // with the same `Option` name
+                // May be replaced with TypeId::of::<std::option::Option<T>>() I guess...
+                let mut is_option = false;
+                if last_segment_ident.to_string().trim() == "Option" {
+                    is_option = true;
+                }
+
+                // Handle #[decodable(default)] and Option<T>
+                // Default::default() for Option is None
+                if field_attrs.bool_attrs.contains(&"default".to_string()) || is_option {
                     inner = quote! {
                         #field_ident: {
-                            let result = #last_segment_ident::#a::get_from_object(value, #field_name, &extended_types);
-                            if let Some(nskeyedunarchiver::DeError::MissingObjectKey(_,_)) = result.as_ref().err() {
+                            let result = value
+                                .as_map()
+                                .get(#field_name);
+                            if let Some(v) = value.as_map().get(#field_name) {
+                                #last_segment_ident::#a::decode(v, &extended_types)?
+                            }
+                            else {
                                 Default::default()
-                            } else {
-                                result?
                             }
                         }
                     };
@@ -262,17 +280,24 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
 
         // regular types
         let mut inner = quote! {
-            #field_ident: #field_type::get_from_object(value, #field_name, &extended_types)?
+            #field_ident: {
+                let v = value.as_map().get(#field_name)
+                .ok_or(nskeyedunarchiver::DeError::MissingObjectKey(value.class().into(), #field_name.into()))?;
+                #field_type::decode(v, &extended_types)?
+            }
         };
         // Handle #[decodable(default)]
         if field_attrs.bool_attrs.contains(&"default".to_string()) {
             inner = quote! {
                 #field_ident: {
-                    let result = #field_type::get_from_object(value, #field_name, &extended_types);
-                    if let Some(nskeyedunarchiver::DeError::MissingObjectKey(_,_)) = result.as_ref().err() {
+                    let result = value
+                        .as_map()
+                        .get(#field_name);
+                    if let Some(v) = value.as_map().get(#field_name) {
+                        #field_type::decode(v, &extended_types)?
+                    }
+                    else {
                         Default::default()
-                    } else {
-                        result?
                     }
                 }
             };
@@ -287,7 +312,7 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
             }
             fn class(&self) -> &str { #struct_name }
 
-            fn decode(value: nskeyedunarchiver::ValueRef, types: &[nskeyedunarchiver::de::ObjectType]) -> Result<Self, nskeyedunarchiver::DeError> {
+            fn decode(value: &nskeyedunarchiver::ObjectValue, types: &[nskeyedunarchiver::de::ObjectType]) -> Result<Self, nskeyedunarchiver::DeError> {
                 use nskeyedunarchiver::de::Decodable;
                 let value = nskeyedunarchiver::as_object!(value)?;
                 // One don't need to pass all types from the struct, only ones that don't appear there explicitly
@@ -387,13 +412,12 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
 
         // hangle things like Vec<u8> (brackets like <u8>)
         if let syn::Type::Path(b) = field_type {
-            //eprintln!("{:?}", b);
             let last_segment = b.path.segments.last().unwrap();
             let last_segment_ident = &last_segment.ident;
             if let syn::PathArguments::AngleBracketed(args) = &last_segment.arguments {
                 let a = args.to_token_stream();
                 let inner = quote! {
-                    if let Ok(v) = #last_segment_ident::#a::decode(value.clone(), types) {
+                    if let Ok(v) = #last_segment_ident::#a::decode(value, types) {
                         return Ok(Self::#field_ident(v));
                     }
                 };
@@ -404,7 +428,7 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
 
         // regular types
         let inner = quote! {
-            if let Ok(v) = #field_type::decode(value.clone(), types) {
+            if let Ok(v) = #field_type::decode(value, types) {
                 return Ok(Self::#field_ident(v));
             }
         };
@@ -423,7 +447,7 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
                 ""
             }
 
-            fn decode(value: nskeyedunarchiver::ValueRef, types: &[nskeyedunarchiver::de::ObjectType]) -> Result<Self, nskeyedunarchiver::DeError>
+            fn decode(value: &nskeyedunarchiver::ObjectValue, types: &[nskeyedunarchiver::de::ObjectType]) -> Result<Self, nskeyedunarchiver::DeError>
             where
                 Self: Sized {
                 #(#variants_inits)*
