@@ -3,10 +3,7 @@
 
 use std::collections::HashMap;
 
-use nskeyedunarchiver::{
-    de::{Decodable, NSData, NSDictionary},
-    object_types, NSKeyedUnarchiver, ObjectValue,
-};
+use nskeyedunarchiver::{de::Decodable, NSKeyedUnarchiver, ObjectValue};
 use nskeyedunarchiver_derive::Decodable;
 
 #[derive(Decodable, Debug)]
@@ -16,8 +13,8 @@ struct NSAffineTransform {
 
 #[derive(Decodable, Debug)]
 struct NSMutableAttributedString {
-    NSAttributeInfo: NSData,
-    NSAttributes: Vec<NSDictionary>,
+    NSAttributeInfo: Vec<u8>,
+    //NSAttributes: Vec<NSDictionary>,
     NSString: String,
 }
 
@@ -62,7 +59,7 @@ struct Note {
 fn note() {
     let unarchiver = NSKeyedUnarchiver::from_file("./tests_resources/plists/note.plist").unwrap();
     let obj = unarchiver.top().get("root").unwrap().clone();
-    let decoded = Note::decode(&ObjectValue::Ref(obj), &object_types!()).unwrap();
+    let decoded = Note::decode(&obj.into()).unwrap();
 
     let note = Note {
         author: "Michael Wright".into(),
@@ -90,7 +87,7 @@ fn nsaffine_transform() {
     let unarchiver =
         NSKeyedUnarchiver::from_file("./tests_resources/plists/NSAffineTransform.plist").unwrap();
     let obj = unarchiver.top().get("root").unwrap().clone();
-    let decoded = NSAffineTransform::decode(&ObjectValue::Ref(obj), &vec![]).unwrap();
+    let decoded = NSAffineTransform::decode(&obj.into()).unwrap();
     println!("{decoded:?}")
 }
 
@@ -100,8 +97,7 @@ fn nsmutable_attributed_string() {
         NSKeyedUnarchiver::from_file("./tests_resources/plists/NSMutableAttributedString.plist")
             .unwrap();
     let obj = unarchiver.top().get("root").unwrap().clone();
-    let decoded =
-        NSMutableAttributedString::decode(&ObjectValue::Ref(obj), &object_types!(NSColor)).unwrap();
+    let decoded = NSMutableAttributedString::decode(&ObjectValue::Ref(obj)).unwrap();
     println!("{decoded:#?}")
 }
 
@@ -110,8 +106,7 @@ fn simple_dict_derive() {
     let unarchiver =
         NSKeyedUnarchiver::from_file("./tests_resources/plists/simpleDict.plist").unwrap();
     let root = unarchiver.top().get("root").unwrap().clone();
-    let decoded_data =
-        HashMap::<String, DictMember>::decode(&root.into(), &object_types!()).unwrap();
+    let decoded_data = HashMap::<String, DictMember>::decode(&root.into()).unwrap();
     let dict = HashMap::from([
         (
             "First key".to_string(),
@@ -121,7 +116,10 @@ fn simple_dict_derive() {
             "Second key".to_string(),
             DictMember::String("Second value".to_string()),
         ),
-        ("Array key".to_string(), DictMember::IntArray(vec![1, 2, 3])),
+        (
+            "Array key".to_string(),
+            DictMember::IntArray(vec![1, 2, 3])
+        ),
     ]);
     assert_eq!(decoded_data, dict);
 }

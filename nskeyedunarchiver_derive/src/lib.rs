@@ -112,10 +112,10 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
     let mut struct_name = struct_ident.to_string();
 
     let struct_attrs = MacroAttributes::try_from(input.attrs.as_slice())?;
-
     if let Some(new_name) = struct_attrs.str_attrs.get("rename") {
         struct_name = new_name.to_string();
     }
+
     if struct_attrs.bool_attrs.contains(&"skip".to_string())
         || struct_attrs.bool_attrs.contains(&"unhandled".to_string())
         || struct_attrs.bool_attrs.contains(&"default".to_string())
@@ -126,9 +126,7 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
     let mut field_inits: Vec<proc_macro2::TokenStream> =
         Vec::with_capacity(named_fields.named.len());
 
-    // First interator over fields. We find all their types to build a Vec<ObjectType>
-    // to pass it to `get_from_object` methods
-    let mut object_types = Vec::with_capacity(named_fields.named.len());
+    // First interator over fields to collect all field names
     let mut field_names = Vec::with_capacity(named_fields.named.len());
     for f in &named_fields.named {
         // hangle things like Vec<u8> (brackets like <u8>)
@@ -143,37 +141,10 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
             field_name = new_name.to_string();
         }
         field_names.push(quote!(#field_name));
-
-        if let syn::Type::Path(b) = &f.ty {
-            let last_segment = b.path.segments.last().unwrap();
-            let last_segment_ident = &last_segment.ident;
-            if let syn::PathArguments::AngleBracketed(args) = &last_segment.arguments {
-                let a = args.to_token_stream();
-                let inner = quote! {
-                    #last_segment_ident::#a
-                };
-                object_types.push(inner);
-                continue;
-            }
-        }
-
-        // regular types
-        object_types.push(f.ty.to_token_stream());
     }
-    let object_types_macro = quote! {
-        {
-            let mut v: Vec<nskeyedunarchiver::de::ObjectType> = vec![];
-            #(
-                if let Some(t) = <#object_types as nskeyedunarchiver::de::Decodable>::as_object_type() {
-                    v.push(t);
-                }
-            )*
-            v
-        }
-    };
 
     // Second iterator over fields. Now we build field initializators:
-    // fieldName: Type::get_from_object(value, "field_name", &extended_types)
+    // fieldName: Type::decode(value)
     // We put them all inside Self {...}
     for f in &named_fields.named {
         let mut field_name = f.ident.as_ref().unwrap().to_string();
@@ -244,7 +215,7 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
                             .as_map()
                             .get(#field_name)
                             .ok_or(nskeyedunarchiver::DeError::MissingObjectKey(value.class().into(), #field_name.into()))?;
-                        #last_segment_ident::#a::decode(v, &extended_types)?
+                        #last_segment_ident::#a::decode(v)?
                     }
                 };
 
@@ -261,11 +232,8 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
                 if field_attrs.bool_attrs.contains(&"default".to_string()) || is_option {
                     inner = quote! {
                         #field_ident: {
-                            let result = value
-                                .as_map()
-                                .get(#field_name);
                             if let Some(v) = value.as_map().get(#field_name) {
-                                #last_segment_ident::#a::decode(v, &extended_types)?
+                                #last_segment_ident::#a::decode(v)?
                             }
                             else {
                                 Default::default()
@@ -283,18 +251,15 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
             #field_ident: {
                 let v = value.as_map().get(#field_name)
                 .ok_or(nskeyedunarchiver::DeError::MissingObjectKey(value.class().into(), #field_name.into()))?;
-                #field_type::decode(v, &extended_types)?
+                #field_type::decode(v)?
             }
         };
         // Handle #[decodable(default)]
         if field_attrs.bool_attrs.contains(&"default".to_string()) {
             inner = quote! {
                 #field_ident: {
-                    let result = value
-                        .as_map()
-                        .get(#field_name);
                     if let Some(v) = value.as_map().get(#field_name) {
-                        #field_type::decode(v, &extended_types)?
+                        #field_type::decode(v)?
                     }
                     else {
                         Default::default()
@@ -307,17 +272,17 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
 
     let expanded = quote! {
         impl nskeyedunarchiver::de::Decodable for #struct_ident {
-            fn is_type_of(classes: &[std::string::String]) -> bool {
-                classes[0] == #struct_name
-            }
-            fn class(&self) -> &str { #struct_name }
-
-            fn decode(value: &nskeyedunarchiver::ObjectValue, types: &[nskeyedunarchiver::de::ObjectType]) -> Result<Self, nskeyedunarchiver::DeError> {
+            fn decode(value: &nskeyedunarchiver::ObjectValue) -> Result<Self, nskeyedunarchiver::DeError> {
                 use nskeyedunarchiver::de::Decodable;
-                let value = nskeyedunarchiver::as_object!(value)?;
-                // One don't need to pass all types from the struct, only ones that don't appear there explicitly
-                let mut extended_types = #object_types_macro;
-                extended_types.extend_from_slice(types);
+                let nskeyedunarchiver::ObjectValue::Ref(value) = value else {
+                    return Err(nskeyedunarchiver::DeError::ExpectedObject);
+                };
+                let value = value.as_object().ok_or(nskeyedunarchiver::DeError::ExpectedObject)?;
+                if #struct_name != value.class() {
+                    return Err(nskeyedunarchiver::DeError::Message(
+                        format!("Expected {} class, found {}", #struct_name, value.class())
+                    ).into());
+                }
                 Ok(
                     Self {
                         #(#field_inits),*
@@ -417,7 +382,7 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
             if let syn::PathArguments::AngleBracketed(args) = &last_segment.arguments {
                 let a = args.to_token_stream();
                 let inner = quote! {
-                    if let Ok(v) = #last_segment_ident::#a::decode(value, types) {
+                    if let Ok(v) = #last_segment_ident::#a::decode(value) {
                         return Ok(Self::#field_ident(v));
                     }
                 };
@@ -428,7 +393,7 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
 
         // regular types
         let inner = quote! {
-            if let Ok(v) = #field_type::decode(value, types) {
+            if let Ok(v) = #field_type::decode(value) {
                 return Ok(Self::#field_ident(v));
             }
         };
@@ -437,17 +402,7 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
 
     let expanded = quote! {
         impl nskeyedunarchiver::de::Decodable for #enum_ident {
-            fn is_type_of(classes: &[String]) -> bool
-            where
-                Self: Sized {
-                false
-            }
-
-            fn class(&self) -> &str {
-                ""
-            }
-
-            fn decode(value: &nskeyedunarchiver::ObjectValue, types: &[nskeyedunarchiver::de::ObjectType]) -> Result<Self, nskeyedunarchiver::DeError>
+            fn decode(value: &nskeyedunarchiver::ObjectValue) -> Result<Self, nskeyedunarchiver::DeError>
             where
                 Self: Sized {
                 #(#variants_inits)*

@@ -1,15 +1,9 @@
-use super::{Decodable, ObjectType};
-use crate::{as_object, DeError, Integer, ObjectValue, UniqueId, ValueRef};
+use super::Decodable;
+use crate::{DeError, Integer, Object, ObjectValue, UniqueId, ValueRef};
 use std::collections::HashMap;
 
 impl Decodable for String {
-    fn is_type_of(classes: &[String]) -> bool {
-        classes[0] == "NSString" || classes[0] == "NSMutableString"
-    }
-    fn class(&self) -> &str {
-        "NSString"
-    }
-    fn decode(value: &ObjectValue, _types: &[ObjectType]) -> Result<Self, DeError> {
+    fn decode(value: &ObjectValue) -> Result<Self, DeError> {
         // A string can be encoded as a plain String type
         if let ObjectValue::String(s) = value {
             return Ok(s.to_string());
@@ -59,18 +53,7 @@ impl Decodable for String {
 }
 
 impl Decodable for bool {
-    fn is_type_of(_classes: &[String]) -> bool
-    where
-        Self: Sized,
-    {
-        false
-    }
-
-    fn class(&self) -> &str {
-        ""
-    }
-
-    fn decode(value: &ObjectValue, _types: &[ObjectType]) -> Result<Self, DeError>
+    fn decode(value: &ObjectValue) -> Result<Self, DeError>
     where
         Self: Sized,
     {
@@ -84,28 +67,10 @@ impl Decodable for bool {
         }
         Err(DeError::ExpectedBoolean)
     }
-
-    fn as_object_type() -> Option<ObjectType>
-    where
-        Self: Sized + 'static,
-    {
-        None
-    }
 }
 
 impl Decodable for Vec<u8> {
-    fn is_type_of(_classes: &[String]) -> bool
-    where
-        Self: Sized,
-    {
-        false
-    }
-
-    fn class(&self) -> &str {
-        ""
-    }
-
-    fn decode(value: &ObjectValue, _types: &[ObjectType]) -> Result<Self, DeError>
+    fn decode(value: &ObjectValue) -> Result<Self, DeError>
     where
         Self: Sized,
     {
@@ -124,28 +89,25 @@ impl Decodable for Vec<u8> {
         }
         Err(DeError::ExpectedData)
     }
+}
 
-    fn as_object_type() -> Option<ObjectType>
-    where
-        Self: Sized + 'static,
-    {
-        None
+/// Decodes NS.objects array to a vector of decodables.
+/// Used by Vec and Hashmap.
+fn refs_to_t<T: Decodable>(obj: &Object) -> Result<Vec<T>, DeError> {
+    let Ok(inner_objs) = obj.decode_array("NS.objects") else {
+        return Err(DeError::Message(
+            "NSArray: Missing NS.objects key".to_string(),
+        ));
+    };
+    let mut result = Vec::with_capacity(inner_objs.len());
+    for inner_obj in inner_objs {
+        result.push(T::decode(&ObjectValue::Ref(inner_obj.clone()))?);
     }
+    Ok(result)
 }
 
 impl<T: Decodable> Decodable for Vec<T> {
-    fn is_type_of(_classes: &[String]) -> bool
-    where
-        Self: Sized,
-    {
-        false
-    }
-
-    fn class(&self) -> &str {
-        ""
-    }
-
-    fn decode(value: &ObjectValue, types: &[ObjectType]) -> Result<Self, DeError>
+    fn decode(value: &ObjectValue) -> Result<Self, DeError>
     where
         Self: Sized,
     {
@@ -153,53 +115,21 @@ impl<T: Decodable> Decodable for Vec<T> {
             return Err(DeError::ExpectedObject);
         };
         let obj = value.as_object().ok_or(DeError::ExpectedObject)?;
-        /*
-        fn is_type_of(classes: &[String]) -> bool {
-        classes[0] == "NSArray"
-            || classes[0] == "NSMutableArray"
-            || classes[0] == "NSSet"
-            || classes[0] == "NSMutableSet"
-        }
-        */
-        /* if !NSArray::is_type_of(obj.classes()) {
+
+        if obj.class() != "NSArray"
+            && obj.class() != "NSMutableArray"
+            && obj.class() != "NSSet"
+            && obj.class() != "NSMutableSet"
+        {
             return Err(DeError::Message("NSArray: not an array".to_string()));
-        } */
-        let Ok(inner_objs) = obj.decode_array("NS.objects") else {
-            return Err(DeError::Message(
-                "NSArray: Expected array of objects".to_string(),
-            ));
-        };
-        let mut result = Vec::with_capacity(inner_objs.len());
-        for inner_obj in inner_objs {
-            result.push(T::decode(&ObjectValue::Ref(inner_obj.clone()), types)?);
         }
 
-        /*let arr = NSArray::get_from_object(obj, key, types)?;
-        arr.try_into_objects::<T>()*/
-        Ok(result)
-    }
-
-    fn as_object_type() -> Option<ObjectType>
-    where
-        Self: Sized + 'static,
-    {
-        None
+        refs_to_t(obj)
     }
 }
 
 impl Decodable for ValueRef {
-    fn is_type_of(_classes: &[String]) -> bool
-    where
-        Self: Sized,
-    {
-        false
-    }
-
-    fn class(&self) -> &str {
-        ""
-    }
-
-    fn decode(value: &ObjectValue, _types: &[ObjectType]) -> Result<Self, DeError>
+    fn decode(value: &ObjectValue) -> Result<Self, DeError>
     where
         Self: Sized,
     {
@@ -208,28 +138,10 @@ impl Decodable for ValueRef {
         };
         Ok(value.clone())
     }
-
-    fn as_object_type() -> Option<ObjectType>
-    where
-        Self: Sized + 'static,
-    {
-        None
-    }
 }
 
 impl Decodable for UniqueId {
-    fn is_type_of(_classes: &[String]) -> bool
-    where
-        Self: Sized,
-    {
-        false
-    }
-
-    fn class(&self) -> &str {
-        ""
-    }
-
-    fn decode(value: &ObjectValue, _types: &[ObjectType]) -> Result<Self, DeError>
+    fn decode(value: &ObjectValue) -> Result<Self, DeError>
     where
         Self: Sized,
     {
@@ -238,53 +150,21 @@ impl Decodable for UniqueId {
         };
         Ok(value.unique_id)
     }
-
-    fn as_object_type() -> Option<ObjectType>
-    where
-        Self: Sized + 'static,
-    {
-        None
-    }
 }
 
 impl<T: Decodable> Decodable for Option<T> {
-    fn is_type_of(_classes: &[String]) -> bool
-    where
-        Self: Sized,
-    {
-        false
-    }
-
-    fn class(&self) -> &str {
-        ""
-    }
-
-    fn decode(value: &ObjectValue, types: &[ObjectType]) -> Result<Self, DeError>
+    fn decode(value: &ObjectValue) -> Result<Self, DeError>
     where
         Self: Sized,
     {
         // None variant is handled in #[derive(Decodable)]
         // Kinda hacky, but it works
-        Ok(Some(T::decode(value, types)?))
-    }
-
-    fn as_object_type() -> Option<ObjectType>
-    where
-        Self: Sized + 'static,
-    {
-        None
+        Ok(Some(T::decode(value)?))
     }
 }
 
 impl Decodable for f64 {
-    fn is_type_of(_classes: &[String]) -> bool {
-        false
-    }
-    fn class(&self) -> &str {
-        ""
-    }
-
-    fn decode(value: &ObjectValue, _types: &[ObjectType]) -> Result<Self, DeError> {
+    fn decode(value: &ObjectValue) -> Result<Self, DeError> {
         if let ObjectValue::Real(value) = value {
             return Ok(*value);
         }
@@ -295,23 +175,10 @@ impl Decodable for f64 {
         }
         Err(DeError::ExpectedFloat)
     }
-
-    fn as_object_type() -> Option<ObjectType>
-    where
-        Self: Sized + 'static,
-    {
-        None
-    }
 }
 
 impl Decodable for Integer {
-    fn is_type_of(_classes: &[String]) -> bool {
-        false
-    }
-    fn class(&self) -> &str {
-        ""
-    }
-    fn decode(value: &ObjectValue, _types: &[ObjectType]) -> Result<Self, DeError> {
+    fn decode(value: &ObjectValue) -> Result<Self, DeError> {
         if let ObjectValue::Integer(value) = value {
             return Ok(*value);
         }
@@ -322,84 +189,51 @@ impl Decodable for Integer {
         }
         Err(DeError::ExpectedInteger)
     }
-
-    fn as_object_type() -> Option<ObjectType>
-    where
-        Self: Sized + 'static,
-    {
-        None
-    }
 }
 
 impl Decodable for u64 {
-    fn is_type_of(_classes: &[String]) -> bool {
-        false
-    }
-    fn class(&self) -> &str {
-        ""
-    }
-    fn decode(value: &ObjectValue, types: &[ObjectType]) -> Result<Self, DeError> {
-        let integer = Integer::decode(value, types)?;
+    fn decode(value: &ObjectValue) -> Result<Self, DeError> {
+        let integer = Integer::decode(value)?;
         integer.as_unsigned().ok_or(DeError::Message(
             "Unable to represent an integer as u64".into(),
         ))
     }
-
-    fn as_object_type() -> Option<ObjectType>
-    where
-        Self: Sized + 'static,
-    {
-        None
-    }
 }
 
 impl Decodable for i64 {
-    fn is_type_of(_classes: &[String]) -> bool {
-        false
-    }
-    fn class(&self) -> &str {
-        ""
-    }
-    fn decode(value: &ObjectValue, types: &[ObjectType]) -> Result<Self, DeError> {
-        let integer = Integer::decode(value, types)?;
+    fn decode(value: &ObjectValue) -> Result<Self, DeError> {
+        let integer = Integer::decode(value)?;
         integer.as_signed().ok_or(DeError::Message(
             "Unable to represent an integer as i64".into(),
         ))
     }
-
-    fn as_object_type() -> Option<ObjectType>
-    where
-        Self: Sized + 'static,
-    {
-        None
-    }
 }
 
 // TODO: A HashMap key should implement Eq and Hash. It's not possible for any Rust struct,
-// so some amount dicts aren't decodable.
+// so some amount of dicts aren't decodable. Usually a key is a String anyway.
 impl<K: Decodable + std::hash::Hash + Eq, V: Decodable> Decodable for HashMap<K, V> {
-    fn is_type_of(_classes: &[String]) -> bool
+    fn decode(value: &ObjectValue) -> Result<Self, DeError>
     where
         Self: Sized,
     {
-        false
-    }
+        let ObjectValue::Ref(obj_value) = value else {
+            return Err(DeError::ExpectedObject);
+        };
+        let obj = obj_value.as_object().ok_or(DeError::ExpectedObject)?;
 
-    fn class(&self) -> &str {
-        ""
-    }
+        if obj.class() != "NSDictionary" && obj.class() != "NSMutableDictionary" {
+            return Err(DeError::Message(
+                "NSDictionary: not a dictionary".to_string(),
+            ));
+        }
 
-    fn decode(value: &ObjectValue, types: &[ObjectType]) -> Result<Self, DeError>
-    where
-        Self: Sized,
-    {
-        let obj = as_object!(value)?;
         let raw_keys = obj.decode_array("NS.keys")?;
         let mut keys = Vec::with_capacity(raw_keys.len());
         for key in raw_keys {
-            keys.push(K::decode(&key.into(), types)?);
+            keys.push(K::decode(&key.into())?);
         }
-        let mut objects = Vec::<V>::decode(value, types)?;
+
+        let mut objects = refs_to_t(obj)?;
 
         if keys.len() != objects.len() {
             return Err(DeError::Message(

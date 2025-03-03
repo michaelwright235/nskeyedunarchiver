@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{
-    de::{Decodable, ObjectType},
-    DeError, Error, Integer, ValueRef, NULL_OBJECT_REFERENCE_NAME,
-};
+use crate::{de::Decodable, DeError, Error, Integer, ValueRef, NULL_OBJECT_REFERENCE_NAME};
 use plist::{Dictionary as PlistDictionary, Value as PlistValue};
 
 macro_rules! get_key {
@@ -125,7 +122,7 @@ impl Object {
         if self.contains_key(key) {
             return Err(DeError::MissingObjectKey(self.class().into(), key.into()));
         }
-        String::decode(self.fields.get(key).unwrap(), &[])
+        String::decode(self.fields.get(key).unwrap())
     }
 
     /// Tries to decode a value as an object with a given `key` and returns a
@@ -140,12 +137,12 @@ impl Object {
 
     /// Tries to decode a value as a `<T>` object with a given `key`.
     /// If it doesn't exist or has some other type a [DeError] is returned.
-    pub fn decode_object_as<T>(&self, key: &str, types: &[ObjectType]) -> Result<T, DeError>
+    pub fn decode_object_as<T>(&self, key: &str) -> Result<T, DeError>
     where
         T: Decodable + 'static,
     {
         let obj = get_key!(self, key, "ref");
-        T::decode(&obj.into(), types)
+        T::decode(&obj.into())
     }
 
     /// Tries to decode a value as an array of value references with a given `key`.
@@ -187,6 +184,7 @@ impl Object {
         self.fields.contains_key(key)
     }
 
+    /// Returns the underlying [HashMap] of values.
     pub fn as_map(&self) -> &HashMap<String, ObjectValue> {
         &self.fields
     }
@@ -249,42 +247,52 @@ impl Object {
         let mut fields = HashMap::with_capacity(dict.len());
         let mut uninit_fields = HashMap::with_capacity(dict.len());
         for (key, obj) in dict {
-            let decoded_obj = if let Some(s) = obj.as_string() {
-                if s == NULL_OBJECT_REFERENCE_NAME {
-                    ObjectValue::NullRef
-                } else {
-                    ObjectValue::String(obj.into_string().unwrap())
-                }
-            } else if let PlistValue::Integer(i) = obj {
-                ObjectValue::Integer(i)
-            } else if let Some(f) = obj.as_real() {
-                ObjectValue::Real(f)
-            } else if let Some(b) = obj.as_boolean() {
-                ObjectValue::Boolean(b)
-            } else if obj.as_data().is_some() {
-                ObjectValue::Data(obj.into_data().unwrap())
-            } else if let Some(arr) = obj.as_array() {
-                let mut arr_of_uids = Vec::with_capacity(arr.len());
-                for val in obj.into_array().unwrap() {
-                    if val.as_uid().is_none() {
-                        return Err(Error::IncorrectFormat(format!(
-                            "Array (uid: {classes_uid}) should contain only object references"
-                        )));
-                    } else {
-                        arr_of_uids.push(val.into_uid().unwrap().get());
+            let decoded_obj = match obj {
+                PlistValue::Array(values) => {
+                    let mut arr_of_uids = Vec::with_capacity(values.len());
+                    for val in values {
+                        if val.as_uid().is_none() {
+                            return Err(Error::IncorrectFormat(format!(
+                                "Array (uid: {classes_uid}) should contain only object references"
+                            )));
+                        } else {
+                            arr_of_uids.push(val.into_uid().unwrap().get());
+                        }
                     }
-                }
-                uninit_fields.insert(key, UninitRefs::RawRefArray(arr_of_uids));
+                    uninit_fields.insert(key, UninitRefs::RawRefArray(arr_of_uids));
+                    continue;
+                },
+                PlistValue::Boolean(b) => {
+                    ObjectValue::Boolean(b)
+                },
+                PlistValue::Data(d) => {
+                    ObjectValue::Data(d)
+                },
+                PlistValue::Real(f) => {
+                    ObjectValue::Real(f)
+                },
+                PlistValue::Integer(i) => {
+                    ObjectValue::Integer(i)
+                },
+                PlistValue::String(s) => {
+                    if s == NULL_OBJECT_REFERENCE_NAME {
+                        ObjectValue::NullRef
+                    } else {
+                        ObjectValue::String(s)
+                    }
+                },
+                PlistValue::Uid(uid) => {
+                    uninit_fields.insert(key, UninitRefs::RawRef(uid.get()));
                 continue;
-            } else if obj.as_uid().is_some() {
-                uninit_fields.insert(key, UninitRefs::RawRef(obj.into_uid().unwrap().get()));
-                continue;
-            } else {
-                return Err(Error::IncorrectFormat(format!(
-                    "Enexpected object (uid: {classes_uid}) value type: {:?}",
-                    obj
-                )));
+                },
+                _ => {
+                    return Err(Error::IncorrectFormat(format!(
+                        "Enexpected object (uid: {classes_uid}) value type: {:?}",
+                        obj
+                    )));
+                },
             };
+
             fields.insert(key, decoded_obj);
         }
         Ok(Self {

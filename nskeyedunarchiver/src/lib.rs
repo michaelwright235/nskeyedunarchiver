@@ -312,7 +312,6 @@ impl NSKeyedUnarchiver {
 
         for (index, obj) in objects.into_iter().enumerate() {
             let decoded_obj = match obj {
-                PlistValue::Array(_) => todo!(),
                 PlistValue::Dictionary(mut dict) => {
                     if Self::is_container(&dict) {
                         ArchiveValue::new(
@@ -349,7 +348,6 @@ impl NSKeyedUnarchiver {
                     ArchiveValueVariant::Data(data.to_vec()),
                     UniqueId::new(index),
                 ),
-                PlistValue::Date(_) => todo!(),
                 PlistValue::Real(real) => {
                     ArchiveValue::new(ArchiveValueVariant::Real(real), UniqueId::new(index))
                 }
@@ -363,7 +361,6 @@ impl NSKeyedUnarchiver {
                         ArchiveValue::new(ArchiveValueVariant::String(string), UniqueId::new(index))
                     }
                 }
-                PlistValue::Uid(_) => todo!(),
                 _ => {
                     return Err(Error::IncorrectFormat(format!(
                         "Unexpected object type: {obj:?}"
