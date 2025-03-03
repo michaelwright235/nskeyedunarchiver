@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    de::{value_ref_to_any, Decodable, ObjectType},
+    de::{Decodable, ObjectType},
     DeError, Error, Integer, ValueRef, NULL_OBJECT_REFERENCE_NAME,
 };
 use plist::{Dictionary as PlistDictionary, Value as PlistValue};
@@ -144,15 +144,8 @@ impl Object {
     where
         T: Decodable + 'static,
     {
-        let obj = value_ref_to_any(self.decode_object(key)?.clone(), types)?;
-        if obj.downcast_ref::<T>().is_none() {
-            return Err(DeError::Message(format!(
-                "{}: Unable to downcast object '{key}' of class '{}'",
-                self.class(),
-                obj.class()
-            )));
-        }
-        Ok(*obj.downcast::<T>().unwrap())
+        let obj = get_key!(self, key, "ref");
+        T::decode(&obj.into(), types)
     }
 
     /// Tries to decode a value as an array of value references with a given `key`.

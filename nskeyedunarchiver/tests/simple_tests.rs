@@ -1,7 +1,8 @@
+use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
-use nskeyedunarchiver::de::{Decodable, NSArray, NSData, NSDictionary};
-use nskeyedunarchiver::{object_types, ArchiveValue, Integer, NSKeyedUnarchiver, ValueRef};
+use nskeyedunarchiver::de::Decodable;
+use nskeyedunarchiver::{object_types, ArchiveValue, Decodable, NSKeyedUnarchiver, ValueRef};
 
 const PLIST_PATH: &str = "./tests_resources/plists/";
 
@@ -34,6 +35,12 @@ fn plain_string() {
     assert_eq!(decoded_string, "Some string!");
 }
 
+#[derive(Decodable, PartialEq, Debug)]
+enum SimpleArrayItem {
+    String(String),
+    Array(Vec<String>)
+}
+
 #[test]
 fn simple_array() {
     // -- NSArray
@@ -44,20 +51,21 @@ fn simple_array() {
     //       -- String: "innerValue4"
 
     let (root, weak_refs) = open_file("simpleArray.plist");
-    let mut decoded_data = NSArray::decode(&root.into(), &object_types!()).unwrap();
-    let parent0: String = decoded_data.remove_as_object::<String>(0).unwrap();
-    assert_eq!(parent0.as_str(), "value1");
-    let parent1: String = decoded_data.remove_as_object::<String>(0).unwrap();
-    assert_eq!(parent1.as_str(), "value2");
+    let decoded_data = Vec::<SimpleArrayItem>::decode(&root.into(), &object_types!()).unwrap();
+    let simple_array = vec![
+        SimpleArrayItem::String("value1".into()),
+        SimpleArrayItem::String("value2".into()),
+        SimpleArrayItem::Array(vec!["innerValue3".into(), "innerValue4".into()])
+    ];
+    assert_eq!(decoded_data, simple_array);
 
-    let parent2: Vec<String> = decoded_data
-        .remove_as_object::<NSArray>(0)
-        .unwrap()
-        .try_into_objects::<String>()
-        .unwrap();
-    assert_eq!(parent2[0].as_str(), "innerValue3");
-    assert_eq!(parent2[1].as_str(), "innerValue4");
     check_rc_strong_count(&weak_refs);
+}
+
+#[derive(Decodable, PartialEq, Debug)]
+enum SimpleDictItem {
+    String(String),
+    Array(Vec<i64>)
 }
 
 #[test]
@@ -71,36 +79,22 @@ fn simple_dict() {
     //                      -- Integer: 3
 
     let (root, weak_refs) = open_file("simpleDict.plist");
-    let mut decoded_data = NSDictionary::decode(&root.into(), &object_types!()).unwrap();
-
-    let value1: Box<String> = decoded_data
-        .remove_as_object::<String>("First key")
-        .unwrap();
-    assert_eq!(value1.as_str(), "First value");
-
-    let value2: Box<String> = decoded_data
-        .remove_as_object::<String>("Second key")
-        .unwrap();
-    assert_eq!(value2.as_str(), "Second value");
-
-    let value3: Vec<Integer> = decoded_data
-        .remove_as_object::<NSArray>("Array key")
-        .unwrap()
-        .try_into_objects::<Integer>()
-        .unwrap();
-
-    assert_eq!(value3[0].as_unsigned().unwrap(), 1);
-    assert_eq!(value3[1].as_unsigned().unwrap(), 2);
-    assert_eq!(value3[2].as_unsigned().unwrap(), 3);
+    let decoded_data = HashMap::<String, SimpleDictItem>::decode(&root.into(), &object_types!()).unwrap();
+    let simple_dict: HashMap<String, SimpleDictItem> = HashMap::from([
+        ("First key".into(), SimpleDictItem::String("First value".into())),
+        ("Second key".into(), SimpleDictItem::String("Second value".into())),
+        ("Array key".into(), SimpleDictItem::Array(vec![1, 2, 3])),
+    ]);
+    assert_eq!(decoded_data, simple_dict);
     check_rc_strong_count(&weak_refs);
 }
 
 #[test]
 fn ns_data() {
     let (root, weak_refs) = open_file("nsData.plist");
-    let decoded_data = NSData::decode(&root.into(), &object_types!(NSData)).unwrap();
-    let s = String::from_utf8(decoded_data.into_inner()).unwrap();
-    assert_eq!(s, "Some data!");
+    let decoded_data = Vec::<u8>::decode(&root.into(), &object_types!()).unwrap();
+    let ns_data = "Some data!".as_bytes();
+    assert_eq!(decoded_data, ns_data);
     check_rc_strong_count(&weak_refs);
 }
 

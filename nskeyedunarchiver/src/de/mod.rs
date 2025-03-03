@@ -1,8 +1,7 @@
 mod impls;
 use downcast_rs::{impl_downcast, Downcast};
-pub use impls::*;
 
-use crate::{DeError, ObjectValue, ValueRef};
+use crate::{DeError, ObjectValue};
 use std::any::TypeId;
 
 #[cfg(not(feature = "debug_decodable"))]
@@ -138,26 +137,11 @@ macro_rules! object_types {
     ($($name:ident),*) => {{
         use $crate::de::Decodable;
         Vec::from([
-            <$crate::de::NSArray as Decodable>::as_object_type().unwrap(),
-            <$crate::de::NSSet as Decodable>::as_object_type().unwrap(),
-            <$crate::de::NSDictionary as Decodable>::as_object_type().unwrap(),
-            <$crate::de::NSData as Decodable>::as_object_type().unwrap(),
             $(
-                <$name as Decodable>::as_object_type().unwrap()
+                $name::as_object_type().unwrap()
             ),*
         ])
     }};
-}
-
-#[macro_export]
-macro_rules! object_types_empty {
-    ($($name:ident),*) => {
-        Vec::from([
-            $(
-                $name::as_object_type()
-            ),*
-        ])
-    };
 }
 
 #[macro_export]
@@ -168,27 +152,4 @@ macro_rules! as_object {
         };
         value.as_object().ok_or($crate::DeError::ExpectedObject)
     }};
-}
-
-pub fn value_ref_to_any(
-    value_ref: ValueRef,
-    types: &[ObjectType],
-) -> Result<Box<dyn Decodable>, DeError> {
-    let Some(object) = value_ref.as_object() else {
-        return Err(DeError::ExpectedObject);
-    };
-    let classes = object.classes();
-    let mut result = None;
-    for typ in types {
-        if typ.is_type_of(classes) {
-            result = Some(typ.decode_as_any(&value_ref.clone().into(), types));
-        }
-    }
-    match result {
-        Some(val) => val,
-        None => Err(DeError::Message(format!(
-            "Undecodable object: {}",
-            classes[0]
-        ))),
-    }
 }
