@@ -319,24 +319,25 @@ impl NSKeyedUnarchiver {
                             UniqueId::new(index),
                         )
                     } else if dict.contains_key("$classes") {
-                        if let Some(classes_arr) = dict.remove("$classes").unwrap().into_array() {
-                            let mut classes = Vec::with_capacity(classes_arr.len());
-                            for class in classes_arr {
-                                if let Some(s) = class.into_string() {
-                                    classes.push(s)
-                                } else {
-                                    return Err(Error::IncorrectFormat(
-                                        "Incorrect Classes object".into(),
-                                    ));
+                        match dict.remove("$classes").unwrap().into_array() {
+                            Some(classes_arr) => {
+                                let mut classes = Vec::with_capacity(classes_arr.len());
+                                for class in classes_arr {
+                                    match class.into_string() { Some(s) => {
+                                        classes.push(s)
+                                    } _ => {
+                                        return Err(Error::IncorrectFormat(
+                                            "Incorrect Classes object".into(),
+                                        ));
+                                    }}
                                 }
-                            }
-                            ArchiveValue::new(
-                                ArchiveValueVariant::Classes(classes),
-                                UniqueId::new(index),
-                            )
-                        } else {
-                            return Err(Error::IncorrectFormat("Incorrect Classes object".into()));
-                        }
+                                ArchiveValue::new(
+                                    ArchiveValueVariant::Classes(classes),
+                                    UniqueId::new(index),
+                                )
+                            } _ => {
+                                return Err(Error::IncorrectFormat("Incorrect Classes object".into()));
+                            }}
                     } else {
                         return Err(Error::IncorrectFormat("Unexpected object type".into()));
                     }
