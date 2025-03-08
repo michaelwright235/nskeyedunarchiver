@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use proc_macro::TokenStream;
-use quote::{format_ident, quote, ToTokens};
-use syn::{parse_macro_input, DeriveInput};
-use syn::{spanned::Spanned, Error, Result};
+use quote::{ToTokens, format_ident, quote};
+use syn::{DeriveInput, parse_macro_input};
+use syn::{Error, Result, spanned::Spanned};
 
 // All possible attributes
 // #[decodable(rename = "foo")], #[decodable(skip)]
@@ -14,7 +14,7 @@ const STR_ATTRS: [&str; 1] = ["rename"];
 #[derive(Debug, Default)]
 struct MacroAttributes {
     str_attrs: HashMap<String, String>,
-    bool_attrs: Vec<String>
+    bool_attrs: Vec<String>,
 }
 
 impl TryFrom<&[syn::Attribute]> for MacroAttributes {
@@ -31,11 +31,14 @@ impl TryFrom<&[syn::Attribute]> for MacroAttributes {
 
         // If we didn't find one, return an empty struct
         let Some(decodable_attr) = decodable_attr else {
-                return Ok(Self::default());
+            return Ok(Self::default());
         };
 
         let syn::Meta::List(list) = &decodable_attr.meta else {
-            return Err(Error::new(decodable_attr.path().span(), "Unable to parse attributes"));
+            return Err(Error::new(
+                decodable_attr.path().span(),
+                "Unable to parse attributes",
+            ));
         };
 
         // Make a plain string out of an attribute contents
@@ -45,7 +48,6 @@ impl TryFrom<&[syn::Attribute]> for MacroAttributes {
 
         // Split it with a comma "," and iterate
         for param in raw_attr.split(",") {
-
             // Split a pair with "=" (name and contents)
             let mut pair: Vec<&str> = param.split("=").collect();
             for s in &mut pair {
@@ -55,10 +57,16 @@ impl TryFrom<&[syn::Attribute]> for MacroAttributes {
             // There may be bool attributes (like `skip`, without "="), so we handle it
             if pair.len() == 1 {
                 if bool_attrs.contains(&pair[0].to_string()) {
-                    return Err(Error::new(decodable_attr.path().span(), "An attribute cannot be set more than once"));
+                    return Err(Error::new(
+                        decodable_attr.path().span(),
+                        "An attribute cannot be set more than once",
+                    ));
                 }
                 if !BOOL_ATTRS.contains(&pair[0]) {
-                    return Err(Error::new(decodable_attr.path().span(), format!("Unknown attribute `{}`", pair[0])));
+                    return Err(Error::new(
+                        decodable_attr.path().span(),
+                        format!("Unknown attribute `{}`", pair[0]),
+                    ));
                 }
                 bool_attrs.push(pair[0].to_string());
                 continue;
@@ -66,32 +74,49 @@ impl TryFrom<&[syn::Attribute]> for MacroAttributes {
 
             // Handle cases like `rename = = "smh"`
             if pair.len() != 2 {
-                return Err(Error::new(decodable_attr.path().span(), "Incorrect attribute"));
+                return Err(Error::new(
+                    decodable_attr.path().span(),
+                    "Incorrect attribute",
+                ));
             }
 
             let attr_name = pair[0];
             let attr_value = pair[1];
             if !attr_value.starts_with("\"") || !attr_value.ends_with("\"") {
-                return Err(Error::new(decodable_attr.path().span(), "An attribute value should start and end with a quote"));
+                return Err(Error::new(
+                    decodable_attr.path().span(),
+                    "An attribute value should start and end with a quote",
+                ));
             }
-            let attr_value = &attr_value[1..attr_value.len()-1]; // remove quotes ""
+            let attr_value = &attr_value[1..attr_value.len() - 1]; // remove quotes ""
             if str_attrs.contains_key(pair[0]) {
-                return Err(Error::new(decodable_attr.path().span(), "An attribute cannot be set more than once"));
+                return Err(Error::new(
+                    decodable_attr.path().span(),
+                    "An attribute cannot be set more than once",
+                ));
             }
             if !STR_ATTRS.contains(&pair[0]) {
-                return Err(Error::new(decodable_attr.path().span(), format!("Unknown attribute `{}`", pair[0])));
+                return Err(Error::new(
+                    decodable_attr.path().span(),
+                    format!("Unknown attribute `{}`", pair[0]),
+                ));
             }
             str_attrs.insert(attr_name.to_string(), attr_value.to_string());
         }
 
-        if (bool_attrs.contains(&"skip".to_string()) || bool_attrs.contains(&"unhandled".to_string()))
-            && (!str_attrs.is_empty() || bool_attrs.len() > 1) {
-            return Err(Error::new(decodable_attr.path().span(), "`skip` cannot be used with other arguments"));
+        if (bool_attrs.contains(&"skip".to_string())
+            || bool_attrs.contains(&"unhandled".to_string()))
+            && (!str_attrs.is_empty() || bool_attrs.len() > 1)
+        {
+            return Err(Error::new(
+                decodable_attr.path().span(),
+                "`skip` cannot be used with other arguments",
+            ));
         }
 
         Ok(Self {
             str_attrs,
-            bool_attrs
+            bool_attrs,
         })
     }
 }
@@ -119,8 +144,11 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
     if struct_attrs.bool_attrs.contains(&"skip".to_string())
         || struct_attrs.bool_attrs.contains(&"unhandled".to_string())
         || struct_attrs.bool_attrs.contains(&"default".to_string())
-        {
-        return Err(Error::new(input.attrs[0].path().span(), "`skip`, `unhandled`, `default` can only be used for fields"));
+    {
+        return Err(Error::new(
+            input.attrs[0].path().span(),
+            "`skip`, `unhandled`, `default` can only be used for fields",
+        ));
     }
 
     let mut field_inits: Vec<proc_macro2::TokenStream> =
@@ -131,7 +159,9 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
     for f in &named_fields.named {
         // hangle things like Vec<u8> (brackets like <u8>)
         let field_attrs = MacroAttributes::try_from(f.attrs.as_slice())?;
-        if field_attrs.bool_attrs.contains(&"skip".to_string()) || field_attrs.bool_attrs.contains(&"unhandled".to_string()){
+        if field_attrs.bool_attrs.contains(&"skip".to_string())
+            || field_attrs.bool_attrs.contains(&"unhandled".to_string())
+        {
             continue;
         }
 
@@ -311,8 +341,7 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
     }
 
     let variants = &cur_enum.variants;
-    let mut variants_inits: Vec<proc_macro2::TokenStream> =
-    Vec::with_capacity(variants.len());
+    let mut variants_inits: Vec<proc_macro2::TokenStream> = Vec::with_capacity(variants.len());
 
     // First interator over variants. We find all their types to build a Vec<ObjectType>
     // to pass it to `decode` methods
@@ -424,7 +453,7 @@ fn decodable_impl(input: DeriveInput) -> Result<TokenStream> {
         _ => Err(Error::new(
             input.ident.span(),
             "Only structs and enums are supported",
-        ))
+        )),
     }
 }
 
@@ -433,6 +462,5 @@ fn decodable_impl(input: DeriveInput) -> Result<TokenStream> {
 pub fn decodable(input: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree
     let input = parse_macro_input!(input as DeriveInput);
-    decodable_impl(input)
-        .unwrap_or_else(|e| e.to_compile_error().into())
+    decodable_impl(input).unwrap_or_else(|e| e.to_compile_error().into())
 }

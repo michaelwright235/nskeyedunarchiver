@@ -323,21 +323,26 @@ impl NSKeyedUnarchiver {
                             Some(classes_arr) => {
                                 let mut classes = Vec::with_capacity(classes_arr.len());
                                 for class in classes_arr {
-                                    match class.into_string() { Some(s) => {
-                                        classes.push(s)
-                                    } _ => {
-                                        return Err(Error::IncorrectFormat(
-                                            "Incorrect Classes object".into(),
-                                        ));
-                                    }}
+                                    match class.into_string() {
+                                        Some(s) => classes.push(s),
+                                        _ => {
+                                            return Err(Error::IncorrectFormat(
+                                                "Incorrect Classes object".into(),
+                                            ));
+                                        }
+                                    }
                                 }
                                 ArchiveValue::new(
                                     ArchiveValueVariant::Classes(classes),
                                     UniqueId::new(index),
                                 )
-                            } _ => {
-                                return Err(Error::IncorrectFormat("Incorrect Classes object".into()));
-                            }}
+                            }
+                            _ => {
+                                return Err(Error::IncorrectFormat(
+                                    "Incorrect Classes object".into(),
+                                ));
+                            }
+                        }
                     } else {
                         return Err(Error::IncorrectFormat("Unexpected object type".into()));
                     }

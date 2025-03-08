@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use nskeyedunarchiver::{de::Decodable, NSKeyedUnarchiver, ObjectValue};
+use nskeyedunarchiver::{NSKeyedUnarchiver, ObjectValue, de::Decodable};
 use nskeyedunarchiver_derive::Decodable;
 
 #[derive(Decodable, Debug)]
@@ -116,10 +116,7 @@ fn simple_dict_derive() {
             "Second key".to_string(),
             DictMember::String("Second value".to_string()),
         ),
-        (
-            "Array key".to_string(),
-            DictMember::IntArray(vec![1, 2, 3])
-        ),
+        ("Array key".to_string(), DictMember::IntArray(vec![1, 2, 3])),
     ]);
     assert_eq!(decoded_data, dict);
 }

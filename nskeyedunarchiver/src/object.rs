@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{de::Decodable, DeError, Error, Integer, ValueRef, NULL_OBJECT_REFERENCE_NAME};
+use crate::{DeError, Error, Integer, NULL_OBJECT_REFERENCE_NAME, ValueRef, de::Decodable};
 use plist::{Dictionary as PlistDictionary, Value as PlistValue};
 
 macro_rules! get_key {
@@ -261,36 +261,28 @@ impl Object {
                     }
                     uninit_fields.insert(key, UninitRefs::RawRefArray(arr_of_uids));
                     continue;
-                },
-                PlistValue::Boolean(b) => {
-                    ObjectValue::Boolean(b)
-                },
-                PlistValue::Data(d) => {
-                    ObjectValue::Data(d)
-                },
-                PlistValue::Real(f) => {
-                    ObjectValue::Real(f)
-                },
-                PlistValue::Integer(i) => {
-                    ObjectValue::Integer(i)
-                },
+                }
+                PlistValue::Boolean(b) => ObjectValue::Boolean(b),
+                PlistValue::Data(d) => ObjectValue::Data(d),
+                PlistValue::Real(f) => ObjectValue::Real(f),
+                PlistValue::Integer(i) => ObjectValue::Integer(i),
                 PlistValue::String(s) => {
                     if s == NULL_OBJECT_REFERENCE_NAME {
                         ObjectValue::NullRef
                     } else {
                         ObjectValue::String(s)
                     }
-                },
+                }
                 PlistValue::Uid(uid) => {
                     uninit_fields.insert(key, UninitRefs::RawRef(uid.get()));
-                continue;
-                },
+                    continue;
+                }
                 _ => {
                     return Err(Error::IncorrectFormat(format!(
                         "Enexpected object (uid: {classes_uid}) value type: {:?}",
                         obj
                     )));
-                },
+                }
             };
 
             fields.insert(key, decoded_obj);
