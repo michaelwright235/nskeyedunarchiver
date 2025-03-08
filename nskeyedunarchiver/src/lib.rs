@@ -374,12 +374,12 @@ impl NSKeyedUnarchiver {
         // them only once, we can use this hack
         let mut decoded_objects_raw = Vec::with_capacity(decoded_objects.len());
         for object in &decoded_objects {
-            let raw = Rc::into_raw(Rc::clone(object)) as *mut ArchiveValue;
+            let raw = Rc::as_ptr(object) as *mut ArchiveValue;
             decoded_objects_raw.push(raw);
-            unsafe { Rc::decrement_strong_count(raw) };
         }
 
         for ptr in &decoded_objects_raw {
+            // it's safe, all objects are still in memory
             let a = unsafe { &mut **ptr };
             if let Some(obj) = a.as_object_mut() {
                 obj.apply_value_refs(&decoded_objects)?
