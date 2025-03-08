@@ -18,11 +18,11 @@ macro_rules! get_key {
         }
         if obj.is_none() {
             return Err(DeError::Message(format!(
-                "{1}: Incorrect value type for key '{3}'. Expected '{0}', found '{2}'",
-                $typ,
+                "{}: Incorrect value type for key '{}'. Expected '{}', found '{}'",
                 $self.class(),
+                $key.to_string(),
+                $typ,
                 raw_object.as_plain_type(),
-                $key.to_string()
             )));
         }
         obj.unwrap()
