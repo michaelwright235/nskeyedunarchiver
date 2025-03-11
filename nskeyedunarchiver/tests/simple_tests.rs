@@ -246,7 +246,7 @@ impl Decodable for Note {
 fn note() {
     // -- Note
     //    -- author      -> String: "Michael Wright"
-    //    -- title       -> String: "Second value"
+    //    -- title       -> String: "Some cool title"
     //    -- published   -> Boolean: true
     //    -- array       -> NSArray:
     //                      -- String: "Hello, World!"
