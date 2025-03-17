@@ -301,9 +301,9 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
     }
 
     let expanded = quote! {
-        impl nskeyedunarchiver::de::Decodable for #struct_ident {
+        impl nskeyedunarchiver::Decodable for #struct_ident {
             fn decode(value: &nskeyedunarchiver::ObjectValue) -> Result<Self, nskeyedunarchiver::DeError> {
-                use nskeyedunarchiver::de::Decodable;
+                use nskeyedunarchiver::Decodable;
                 let nskeyedunarchiver::ObjectValue::Ref(value) = value else {
                     return Err(nskeyedunarchiver::DeError::ExpectedObject);
                 };
@@ -430,7 +430,7 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
     }
 
     let expanded = quote! {
-        impl nskeyedunarchiver::de::Decodable for #enum_ident {
+        impl nskeyedunarchiver::Decodable for #enum_ident {
             fn decode(value: &nskeyedunarchiver::ObjectValue) -> Result<Self, nskeyedunarchiver::DeError>
             where
                 Self: Sized {

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{DeError, Error, Integer, NULL_OBJECT_REFERENCE_NAME, ValueRef, de::Decodable};
+use crate::{DeError, Error, Integer, NULL_OBJECT_REFERENCE_NAME, ValueRef, Decodable};
 use plist::{Dictionary as PlistDictionary, Value as PlistValue};
 
 macro_rules! get_key {

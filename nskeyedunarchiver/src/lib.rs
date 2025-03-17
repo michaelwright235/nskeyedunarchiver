@@ -1,15 +1,18 @@
-pub mod de;
+mod decodable;
 mod error;
 mod object;
 
 pub use error::*;
 pub use object::*;
 pub use plist::Integer;
+pub use decodable::Decodable;
 use plist::{Dictionary as PlistDictionary, Value as PlistValue};
 use std::{collections::HashMap, rc::Rc};
 
 #[cfg(feature = "derive")]
-pub use nskeyedunarchiver_derive::Decodable;
+pub mod derive {
+    pub use nskeyedunarchiver_derive::Decodable;
+}
 
 const ARCHIVER: &str = "NSKeyedArchiver";
 const ARCHIVER_VERSION: u64 = 100000;
@@ -378,6 +381,7 @@ impl NSKeyedUnarchiver {
 
         // In order to avoid using RefCell to write object references into
         // them only once, we can use this hack
+        // UniqueRc is more suitable for this case, but it's not stable yet
         let mut decoded_objects_raw = Vec::with_capacity(decoded_objects.len());
         for object in &decoded_objects {
             let raw = Rc::as_ptr(object) as *mut ArchiveValue;

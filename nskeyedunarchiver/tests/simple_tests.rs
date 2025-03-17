@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
-use nskeyedunarchiver::de::Decodable;
+use nskeyedunarchiver::Decodable;
 use nskeyedunarchiver::{ArchiveValue, DeError, NSKeyedUnarchiver, ObjectValue, ValueRef};
 
 const PLIST_PATH: &str = "./tests_resources/plists/";

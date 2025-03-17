@@ -1,8 +1,7 @@
 #![cfg(feature = "derive")]
 
 use std::collections::HashMap;
-use nskeyedunarchiver::{NSKeyedUnarchiver, ObjectValue, de::Decodable};
-use nskeyedunarchiver_derive::Decodable;
+use nskeyedunarchiver::{NSKeyedUnarchiver, ObjectValue, Decodable, derive::Decodable};
 
 #[derive(Decodable, Debug, PartialEq)]
 struct NSAffineTransform {

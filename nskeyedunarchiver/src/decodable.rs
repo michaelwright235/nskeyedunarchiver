@@ -1,6 +1,13 @@
-use super::Decodable;
-use crate::{DeError, Integer, Object, ObjectValue, UniqueId, ValueRef};
+use crate::{DeError, ObjectValue, Integer, Object, UniqueId, ValueRef};
 use std::collections::HashMap;
+
+/// A trait that can be implemented for a structure to be decodable.
+pub trait Decodable {
+    /// The main decoding method of your structure
+    fn decode(value: &ObjectValue) -> Result<Self, DeError>
+    where
+        Self: Sized;
+}
 
 impl Decodable for String {
     fn decode(value: &ObjectValue) -> Result<Self, DeError> {
