@@ -11,14 +11,14 @@ use std::{collections::HashMap, rc::Rc};
 #[cfg(feature = "derive")]
 pub use nskeyedunarchiver_derive::Decodable;
 
-pub(crate) const ARCHIVER: &str = "NSKeyedArchiver";
-pub(crate) const ARCHIVER_VERSION: u64 = 100000;
+const ARCHIVER: &str = "NSKeyedArchiver";
+const ARCHIVER_VERSION: u64 = 100000;
 
-pub(crate) const ARCHIVER_KEY_NAME: &str = "$archiver";
-pub(crate) const TOP_KEY_NAME: &str = "$top";
-pub(crate) const OBJECTS_KEY_NAME: &str = "$objects";
-pub(crate) const VERSION_KEY_NAME: &str = "$version";
-pub(crate) const NULL_OBJECT_REFERENCE_NAME: &str = "$null";
+const ARCHIVER_KEY_NAME: &str = "$archiver";
+const TOP_KEY_NAME: &str = "$top";
+const OBJECTS_KEY_NAME: &str = "$objects";
+const VERSION_KEY_NAME: &str = "$version";
+const NULL_OBJECT_REFERENCE_NAME: &str = "$null";
 
 /// An [Rc] smart pointer to an [ArchiveValue]
 pub type ValueRef = Rc<ArchiveValue>;
