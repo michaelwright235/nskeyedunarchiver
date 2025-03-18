@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
-use nskeyedunarchiver::Decodable;
+use nskeyedunarchiver::{Data, Decodable};
 use nskeyedunarchiver::{ArchiveValue, DeError, NSKeyedUnarchiver, ObjectValue, ValueRef};
 
 const PLIST_PATH: &str = "./tests_resources/plists/";
@@ -38,8 +38,8 @@ fn plain_string() {
 #[test]
 fn ns_data() {
     let (root, weak_refs) = open_file("nsData.plist");
-    let decoded_data = Vec::<u8>::decode(&root.into()).unwrap();
-    let ns_data = "Some data!".as_bytes();
+    let decoded_data = Data::decode(&root.into()).unwrap();
+    let ns_data = "Some data!".as_bytes().to_vec().into();
     assert_eq!(decoded_data, ns_data);
     check_rc_strong_count(&weak_refs);
 }
@@ -108,7 +108,7 @@ fn circular_reference() {
 #[derive(PartialEq, Debug)]
 enum SimpleDictItem {
     String(String),
-    Array(Vec<i64>),
+    Array(Vec<u8>),
 }
 
 impl Decodable for SimpleDictItem {
@@ -119,7 +119,7 @@ impl Decodable for SimpleDictItem {
         if let Ok(v) = String::decode(value) {
             return Ok(Self::String(v));
         }
-        if let Ok(v) = Vec::<i64>::decode(value) {
+        if let Ok(v) = Vec::<u8>::decode(value) {
             return Ok(Self::Array(v));
         }
         Err(DeError::Message(format!(

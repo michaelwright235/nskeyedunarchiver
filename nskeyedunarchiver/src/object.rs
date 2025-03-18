@@ -129,7 +129,7 @@ impl Object {
     /// [ValueRef] of an archive value.
     /// If it doesn't exist or has some other type a [DeError] is returned.
     ///
-    /// One may rarely use this method, look at [decode_object_as] method instead.
+    /// One may rarely use this method, look at [Self::decode_object_as] method instead.
     pub fn decode_object(&self, key: &str) -> Result<ValueRef, DeError> {
         let obj = get_key!(self, key, "ref").clone();
         Ok(obj)

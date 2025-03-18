@@ -1,18 +1,18 @@
 #![cfg(feature = "derive")]
 
 use std::collections::HashMap;
-use nskeyedunarchiver::{NSKeyedUnarchiver, ObjectValue, Decodable, derive::Decodable};
+use nskeyedunarchiver::{derive::Decodable, Data, Decodable, NSKeyedUnarchiver, ObjectValue};
 
 #[derive(Decodable, Debug, PartialEq)]
 struct NSAffineTransform {
     #[decodable(rename = "NSTransformStruct")]
-    nstransform_struct: Option<Vec<u8>>,
+    nstransform_struct: Option<Data>,
 }
 
 #[derive(Decodable, Debug, PartialEq)]
 struct NSMutableAttributedString {
     #[decodable(rename = "NSAttributeInfo")]
-    nsattribute_info: Vec<u8>,
+    nsattribute_info: Data,
     #[decodable(rename = "NSAttributes")]
     nsattributes: Vec<HashMap<String, NSColor>>,
     #[decodable(rename = "NSString")]
@@ -24,9 +24,9 @@ struct NSColor {
     #[decodable(rename = "NSColorSpace")]
     nscolor_space: i64,
     #[decodable(rename = "NSComponents")]
-    nscomponents: Vec<u8>,
+    nscomponents: Data,
     #[decodable(rename = "NSRGB")]
-    nsrgb: Vec<u8>,
+    nsrgb: Data,
     #[decodable(rename = "NSCustomColorSpace")]
     nscustom_color_space: Foo,
     #[decodable(skip)] // Default::default()
@@ -38,7 +38,7 @@ struct NSColor {
 struct Foo {
     // it's too big to put in this test
     //#[decodable(rename = "NSICC")]
-    //nsicc: Vec<u8>,
+    //nsicc: Data,
     #[decodable(rename = "NSID")]
     nsid: i64,
 }
@@ -99,7 +99,7 @@ fn nsaffine_transform() {
         nstransform_struct: Some(vec![
             63, 118, 176, 124, 62, 136, 211, 120, 190, 136, 211, 120, 63, 118, 176, 124, 0, 0, 0,
             0, 0, 0, 0, 0,
-        ]),
+        ].into()),
     };
     assert_eq!(decoded, eq);
 }
@@ -112,17 +112,17 @@ fn nsmutable_attributed_string() {
     let obj = unarchiver.top().get("root").unwrap().clone();
     let decoded = NSMutableAttributedString::decode(&ObjectValue::Ref(obj)).unwrap();
     let eq = NSMutableAttributedString {
-        nsattribute_info: vec![5, 0, 11, 1],
+        nsattribute_info: vec![5, 0, 11, 1].into(),
         nsattributes: vec![
             HashMap::from([(
                 "NSColor".into(),
                 NSColor {
                     nscolor_space: 1,
-                    nscomponents: vec![49, 32, 48, 32, 48, 32, 49],
+                    nscomponents: vec![49, 32, 48, 32, 48, 32, 49].into(),
                     nsrgb: vec![
                         48, 46, 57, 56, 53, 57, 53, 52, 49, 54, 53, 53, 32, 48, 32, 48, 46, 48, 50,
                         54, 57, 52, 48, 48, 48, 56, 54, 51, 0,
-                    ],
+                    ].into(),
                     nscustom_color_space: Foo { nsid: 7 },
                     my_field: "".into(),
                 },

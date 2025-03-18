@@ -76,22 +76,66 @@ impl Decodable for bool {
     }
 }
 
-impl Decodable for Vec<u8> {
+/// A byte buffer used for decoding from the plist data type and NSData
+/// (NSMutableData) class.
+#[derive(PartialEq, Eq, Debug, Hash, Clone)]
+pub struct Data(Vec<u8>);
+
+impl Data {
+    /// Creates a new Data from vec of bytes.
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+
+    /// Consumes itself and returns a vec of bytes.
+    pub fn into_vec(self) -> Vec<u8> {
+        self.0
+    }
+}
+
+impl From<Vec<u8>> for Data {
+    fn from(value: Vec<u8>) -> Self {
+        Self(value)
+    }
+}
+
+impl From<Data> for Vec<u8> {
+    fn from(value: Data) -> Self {
+        value.0
+    }
+}
+
+impl AsRef<[u8]> for Data {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl AsMut<[u8]> for Data {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+}
+
+impl Decodable for Data {
     fn decode(value: &ObjectValue) -> Result<Self, DeError>
     where
         Self: Sized,
     {
         if let ObjectValue::Data(value) = value {
-            return Ok(value.to_vec());
+            return Ok(Data(value.to_vec()));
         }
         if let ObjectValue::Ref(value) = value {
             if let Some(v) = value.as_data() {
-                return Ok(v.to_vec());
+                return Ok(Data(v.to_vec()));
             }
             // Decoding NSData
             if let Some(v) = value.as_object() {
+                if v.class() != "NSData" && v.class() != "NSMutableData" {
+                    return Err(DeError::ExpectedData);
+                }
                 let data = v.decode_data("NS.data")?;
-                return Ok(data.to_vec());
+                return Ok(Data(data.to_vec()));
             }
         }
         Err(DeError::ExpectedData)
@@ -99,11 +143,11 @@ impl Decodable for Vec<u8> {
 }
 
 /// Decodes NS.objects array to a vector of decodables.
-/// Used by Vec and Hashmap.
+/// Used by Vec and Hashmap impls.
 fn refs_to_t<T: Decodable>(obj: &Object) -> Result<Vec<T>, DeError> {
     let Ok(inner_objs) = obj.decode_array("NS.objects") else {
         return Err(DeError::Message(
-            "NSArray: Missing NS.objects key".to_string(),
+            "Missing NS.objects key".to_string(),
         ));
     };
     let mut result = Vec::with_capacity(inner_objs.len());
@@ -207,6 +251,30 @@ impl Decodable for u64 {
     }
 }
 
+impl Decodable for u8 {
+    fn decode(value: &ObjectValue) -> Result<Self, DeError> {
+        u64::decode(value)?
+            .try_into()
+            .map_err(|e| DeError::Message(format!("{e}")))
+    }
+}
+
+impl Decodable for u16 {
+    fn decode(value: &ObjectValue) -> Result<Self, DeError> {
+        u64::decode(value)?
+            .try_into()
+            .map_err(|e| DeError::Message(format!("{e}")))
+    }
+}
+
+impl Decodable for u32 {
+    fn decode(value: &ObjectValue) -> Result<Self, DeError> {
+        u64::decode(value)?
+            .try_into()
+            .map_err(|e| DeError::Message(format!("{e}")))
+    }
+}
+
 impl Decodable for i64 {
     fn decode(value: &ObjectValue) -> Result<Self, DeError> {
         let integer = Integer::decode(value)?;
@@ -216,7 +284,31 @@ impl Decodable for i64 {
     }
 }
 
-// TODO: A HashMap key should implement Eq and Hash. It's not possible for any Rust struct,
+impl Decodable for i8 {
+    fn decode(value: &ObjectValue) -> Result<Self, DeError> {
+        i64::decode(value)?
+            .try_into()
+            .map_err(|e| DeError::Message(format!("{e}")))
+    }
+}
+
+impl Decodable for i16 {
+    fn decode(value: &ObjectValue) -> Result<Self, DeError> {
+        i64::decode(value)?
+            .try_into()
+            .map_err(|e| DeError::Message(format!("{e}")))
+    }
+}
+
+impl Decodable for i32 {
+    fn decode(value: &ObjectValue) -> Result<Self, DeError> {
+        i64::decode(value)?
+            .try_into()
+            .map_err(|e| DeError::Message(format!("{e}")))
+    }
+}
+
+// FIXME: A HashMap key should implement Eq and Hash. It's not possible for any Rust struct,
 // so some amount of dicts aren't decodable. Usually a key is a String anyway.
 impl<K: Decodable + std::hash::Hash + Eq, V: Decodable> Decodable for HashMap<K, V> {
     fn decode(value: &ObjectValue) -> Result<Self, DeError>

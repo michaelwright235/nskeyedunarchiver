@@ -5,7 +5,7 @@ mod object;
 pub use error::*;
 pub use object::*;
 pub use plist::Integer;
-pub use decodable::Decodable;
+pub use decodable::*;
 use plist::{Dictionary as PlistDictionary, Value as PlistValue};
 use std::{collections::HashMap, rc::Rc};
 
@@ -56,8 +56,8 @@ pub(crate) enum ArchiveValueVariant {
 
 /// Represents a single value contained inside of an archive.
 ///
-/// The possible values are: [String], [Integer], [f64], Vec<u8>, [bool],
-/// `NullRef` (a `$null` reference ), `Classes` (an array of class strings), [Object].
+/// The possible values are: [String], [Integer], [f64], Vec\<u8\>, [bool],
+/// `NullRef` (a `$null` reference), `Classes` (an array of class strings), [Object].
 #[derive(Debug, PartialEq)]
 pub struct ArchiveValue {
     value: ArchiveValueVariant,
