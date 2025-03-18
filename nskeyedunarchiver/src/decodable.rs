@@ -31,12 +31,10 @@ impl Decodable for String {
 
         let obj = value.as_object().unwrap();
         if obj.class() != "NSString" && obj.class() != "NSMutableString" {
-            return Err(DeError::Message(format!(
-                "Incorrect value type of '{0}' for object '{1}'. Expected '{2}'",
-                obj.class(),
-                "NSString",
-                "NSString or NSMutableString",
-            )));
+            return Err(DeError::UnexpectedClass(
+                obj.class().into(),
+                "NSString or NSMutableString".into(),
+            ));
         }
 
         if !obj.contains_key("NS.bytes") && !obj.contains_key("NS.string") {
@@ -45,7 +43,7 @@ impl Decodable for String {
         let s = if let Some(ObjectValue::Data(data)) = obj.as_map().get("NS.bytes") {
             let parsed = String::from_utf8(data.to_vec());
             if let Err(e) = parsed {
-                return Err(DeError::Message(format!(
+                return Err(DeError::Custom(format!(
                     "Unable to parse a UTF-8 string: {e}"
                 )));
             }
@@ -132,7 +130,10 @@ impl Decodable for Data {
             // Decoding NSData
             if let Some(v) = value.as_object() {
                 if v.class() != "NSData" && v.class() != "NSMutableData" {
-                    return Err(DeError::ExpectedData);
+                    return Err(DeError::UnexpectedClass(
+                        v.class().into(),
+                        "NSData or NSMutableData".into()
+                    ));
                 }
                 let data = v.decode_data("NS.data")?;
                 return Ok(Data(data.to_vec()));
@@ -146,7 +147,7 @@ impl Decodable for Data {
 /// Used by Vec and Hashmap impls.
 fn refs_to_t<T: Decodable>(obj: &Object) -> Result<Vec<T>, DeError> {
     let Ok(inner_objs) = obj.decode_array("NS.objects") else {
-        return Err(DeError::Message(
+        return Err(DeError::Custom(
             "Missing NS.objects key".to_string(),
         ));
     };
@@ -172,7 +173,10 @@ impl<T: Decodable> Decodable for Vec<T> {
             && obj.class() != "NSSet"
             && obj.class() != "NSMutableSet"
         {
-            return Err(DeError::Message("NSArray: not an array".to_string()));
+            return Err(DeError::UnexpectedClass(
+                obj.class().into(),
+                "NSArray, NSMutableArray, NSSet or NSMutableSet".into()
+            ));
         }
 
         refs_to_t(obj)
@@ -245,7 +249,7 @@ impl Decodable for Integer {
 impl Decodable for u64 {
     fn decode(value: &ObjectValue) -> Result<Self, DeError> {
         let integer = Integer::decode(value)?;
-        integer.as_unsigned().ok_or(DeError::Message(
+        integer.as_unsigned().ok_or(DeError::Custom(
             "Unable to represent an integer as u64".into(),
         ))
     }
@@ -255,7 +259,7 @@ impl Decodable for u8 {
     fn decode(value: &ObjectValue) -> Result<Self, DeError> {
         u64::decode(value)?
             .try_into()
-            .map_err(|e| DeError::Message(format!("{e}")))
+            .map_err(|e| DeError::Custom(format!("{e}")))
     }
 }
 
@@ -263,7 +267,7 @@ impl Decodable for u16 {
     fn decode(value: &ObjectValue) -> Result<Self, DeError> {
         u64::decode(value)?
             .try_into()
-            .map_err(|e| DeError::Message(format!("{e}")))
+            .map_err(|e| DeError::Custom(format!("{e}")))
     }
 }
 
@@ -271,14 +275,14 @@ impl Decodable for u32 {
     fn decode(value: &ObjectValue) -> Result<Self, DeError> {
         u64::decode(value)?
             .try_into()
-            .map_err(|e| DeError::Message(format!("{e}")))
+            .map_err(|e| DeError::Custom(format!("{e}")))
     }
 }
 
 impl Decodable for i64 {
     fn decode(value: &ObjectValue) -> Result<Self, DeError> {
         let integer = Integer::decode(value)?;
-        integer.as_signed().ok_or(DeError::Message(
+        integer.as_signed().ok_or(DeError::Custom(
             "Unable to represent an integer as i64".into(),
         ))
     }
@@ -288,7 +292,7 @@ impl Decodable for i8 {
     fn decode(value: &ObjectValue) -> Result<Self, DeError> {
         i64::decode(value)?
             .try_into()
-            .map_err(|e| DeError::Message(format!("{e}")))
+            .map_err(|e| DeError::Custom(format!("{e}")))
     }
 }
 
@@ -296,7 +300,7 @@ impl Decodable for i16 {
     fn decode(value: &ObjectValue) -> Result<Self, DeError> {
         i64::decode(value)?
             .try_into()
-            .map_err(|e| DeError::Message(format!("{e}")))
+            .map_err(|e| DeError::Custom(format!("{e}")))
     }
 }
 
@@ -304,7 +308,7 @@ impl Decodable for i32 {
     fn decode(value: &ObjectValue) -> Result<Self, DeError> {
         i64::decode(value)?
             .try_into()
-            .map_err(|e| DeError::Message(format!("{e}")))
+            .map_err(|e| DeError::Custom(format!("{e}")))
     }
 }
 
@@ -321,8 +325,9 @@ impl<K: Decodable + std::hash::Hash + Eq, V: Decodable> Decodable for HashMap<K,
         let obj = obj_value.as_object().ok_or(DeError::ExpectedObject)?;
 
         if obj.class() != "NSDictionary" && obj.class() != "NSMutableDictionary" {
-            return Err(DeError::Message(
-                "NSDictionary: not a dictionary".to_string(),
+            return Err(DeError::UnexpectedClass(
+                obj.class().into(),
+                "NSDictionary or NSMutableDictionary".into(),
             ));
         }
 
@@ -335,7 +340,7 @@ impl<K: Decodable + std::hash::Hash + Eq, V: Decodable> Decodable for HashMap<K,
         let mut objects = refs_to_t(obj)?;
 
         if keys.len() != objects.len() {
-            return Err(DeError::Message(
+            return Err(DeError::Custom(
                 "NSDictionary: The number of keys is not equal to the number of values".to_string(),
             ));
         }

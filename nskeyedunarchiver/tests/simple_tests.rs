@@ -63,7 +63,7 @@ impl Decodable for SimpleArrayItem {
         if let Ok(v) = Vec::<String>::decode(value) {
             return Ok(Self::Array(v));
         }
-        Err(DeError::Message(format!(
+        Err(DeError::Custom(format!(
             "Undecodable object for enum: {value:?}",
         )))
     }
@@ -122,7 +122,7 @@ impl Decodable for SimpleDictItem {
         if let Ok(v) = Vec::<u8>::decode(value) {
             return Ok(Self::Array(v));
         }
-        Err(DeError::Message(format!(
+        Err(DeError::Custom(format!(
             "Undecodable object for enum: {value:?}",
         )))
     }
@@ -178,7 +178,7 @@ impl Decodable for NoteArrayMember {
         if let Ok(v) = bool::decode(value) {
             return Ok(Self::Boolean(v));
         }
-        Err(DeError::Message(format!(
+        Err(DeError::Custom(format!(
             "Undecodable object for enum: {value:?}",
         )))
     }

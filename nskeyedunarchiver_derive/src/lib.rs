@@ -309,8 +309,9 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
                 };
                 let value = value.as_object().ok_or(nskeyedunarchiver::DeError::ExpectedObject)?;
                 if #struct_name != value.class() {
-                    return Err(nskeyedunarchiver::DeError::Message(
-                        format!("Expected {} class, found {}", #struct_name, value.class())
+                    return Err(nskeyedunarchiver::DeError::UnexpectedClass(
+                        value.class().into(),
+                        #struct_name.into(),
                     ).into());
                 }
                 Ok(
@@ -436,7 +437,7 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
                 Self: Sized {
                 #(#variants_inits)*
 
-                Err(nskeyedunarchiver::DeError::Message(format!(
+                Err(nskeyedunarchiver::DeError::Custom(format!(
                     "Undecodable object for enum: {value:?}",
                 )))
             }

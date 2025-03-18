@@ -14,9 +14,10 @@ pub enum Error {
 
 /// An error that may happen during decoding an [Object](crate::Object).
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum DeError {
     #[error("{0}")]
-    Message(String),
+    Custom(String),
     #[error("Expected string")]
     ExpectedString,
     #[error("Expected integer")]
@@ -33,4 +34,6 @@ pub enum DeError {
     ExpectedNullRef,
     #[error("{0}: Missing object key `{1}`")]
     MissingObjectKey(String, String),
+    #[error("Expected class `{1}`, found `{0}`")]
+    UnexpectedClass(String, String)
 }

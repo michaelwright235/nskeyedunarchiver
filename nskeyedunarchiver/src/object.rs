@@ -17,7 +17,7 @@ macro_rules! get_key {
             };
         }
         if obj.is_none() {
-            return Err(DeError::Message(format!(
+            return Err(DeError::Custom(format!(
                 "{}: Incorrect value type for key '{}'. Expected '{}', found '{}'",
                 $self.class(),
                 $key.to_string(),
