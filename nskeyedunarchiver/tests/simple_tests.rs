@@ -38,7 +38,7 @@ fn plain_string() {
 fn ns_data() {
     let (root, weak_refs) = open_file("nsData.plist");
     let decoded_data = Data::decode(&root.into()).unwrap();
-    let ns_data = "Some data!".as_bytes().to_vec().into();
+    let ns_data = b"Some data!".to_vec().into();
     assert_eq!(decoded_data, ns_data);
     check_rc_strong_count(&weak_refs);
 }

@@ -4,12 +4,14 @@
 @interface Note : NSObject <NSCoding> {
   NSString *title;
   NSString *author;
+  int date;
   BOOL published;
   NSArray *array;
 }
 
 @property (nonatomic, copy) NSString *title;
 @property (nonatomic, copy) NSString *author;
+@property (nonatomic) int date;
 @property (nonatomic) BOOL published;
 @property (nonatomic, copy) NSArray *array;
 
@@ -19,6 +21,7 @@
 
 @synthesize title;
 @synthesize author;
+@synthesize date;
 @synthesize published;
 @synthesize array;
 
@@ -32,6 +35,7 @@
   if (self = [super init]) {
     self.title = [decoder decodeObjectForKey:@"title"];
     self.author = [decoder decodeObjectForKey:@"author"];
+    self.date = [decoder decodeIntForKey:@"date"];
     self.published = [decoder decodeBoolForKey:@"published"];
     self.array = [decoder decodeObjectForKey:@"array"];
   }
@@ -41,6 +45,7 @@
 - (void)encodeWithCoder:(NSCoder *)encoder {
   [encoder encodeObject:title forKey:@"title"];
   [encoder encodeObject:author forKey:@"author"];
+  [encoder encodeInt:date forKey:@"date"];
   [encoder encodeBool:published forKey:@"published"];
   [encoder encodeObject:array forKey:@"array"];
 }
@@ -123,6 +128,7 @@ void note(void) {
     Note *object = [[Note alloc] init];
     object.title = @"Some cool title";
     object.author = @"Michael Wright";
+    object.date = 2025;
     object.published = TRUE;
     object.array = @[@"Hello, World!", @42, @YES];
     archiveData(object, @"note");

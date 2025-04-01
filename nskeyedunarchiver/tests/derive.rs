@@ -54,11 +54,13 @@ enum ArrayMember {
 struct Note {
     author: String,
     title: String,
-    #[decodable(default)]
-    published: bool,
+    #[decodable(default, rename = "published")]
+    is_published: bool,
     array: Vec<ArrayMember>,
+    // It will be `None`
     not_present: Option<String>,
     #[decodable(unhandled)]
+    // The `date` field will go here
     unhandled: HashMap<String, ObjectValue>,
 }
 
@@ -71,14 +73,17 @@ fn note() {
     let note = Note {
         author: "Michael Wright".into(),
         title: "Some cool title".into(),
-        published: true,
+        is_published: true,
         array: vec![
             ArrayMember::String("Hello, World!".into()),
             ArrayMember::Integer(42),
             ArrayMember::Boolean(true),
         ],
         not_present: None,
-        unhandled: HashMap::new(),
+        unhandled: HashMap::from([(
+            "date".into(),
+            ObjectValue::Integer(2025.into()),
+        )]),
     };
     assert_eq!(note, decoded);
 }
