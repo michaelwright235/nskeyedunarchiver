@@ -210,8 +210,13 @@ impl<T: Decodable> Decodable for Option<T> {
     where
         Self: Sized,
     {
-        // None variant is handled in #[derive(Decodable)]
-        // Kinda hacky, but it works
+        // None variant is handled in #[derive(Decodable)].
+        // Here we assume that a value under a given key exists.
+        // Kinda hacky, but it works.
+
+        if value == &ObjectValue::NullRef {
+            return Ok(None);
+        }
         Ok(Some(T::decode(value)?))
     }
 }
