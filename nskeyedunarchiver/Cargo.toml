@@ -9,7 +9,8 @@ derive = ["dep:nskeyedunarchiver_derive"]
 
 [dependencies]
 paste = "1.0"
-plist = "1.7"
+# We don't need serde feature of plist
+plist = { version = "1.7", default-features = false }
 thiserror = "2.0"
 nskeyedunarchiver_derive = { path="../nskeyedunarchiver_derive", optional = true }
 

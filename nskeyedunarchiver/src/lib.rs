@@ -223,7 +223,7 @@ impl KeyedArchive {
     fn get_header_key(dict: &mut PlistDictionary, key: &'static str) -> Result<PlistValue, Error> {
         let Some(objects_value) = dict.remove(key) else {
             return Err(Error::IncorrectFormat(format!(
-                "Missing '{key}' header key"
+                "Missing `{key}` header key"
             )));
         };
         Ok(objects_value)
@@ -334,7 +334,7 @@ impl KeyedArchive {
     pub fn from_plist(plist: PlistValue) -> Result<Self, Error> {
         let Some(mut dict) = plist.into_dictionary() else {
             return Err(Error::IncorrectFormat(
-                "Expected root key to be a type of 'Dictionary'".into(),
+                "Expected root key to be a type of `Dictionary`".into(),
             ));
         };
 
@@ -342,13 +342,13 @@ impl KeyedArchive {
         let archiver_key = Self::get_header_key(&mut dict, ARCHIVER_KEY_NAME)?;
         let Some(archiver_str) = archiver_key.as_string() else {
             return Err(Error::IncorrectFormat(format!(
-                "Expected '{ARCHIVER_KEY_NAME}' key to be a type of 'String'"
+                "Expected `{ARCHIVER_KEY_NAME}` key to be a type of `String`"
             )));
         };
 
         if archiver_str != ARCHIVER {
             return Err(Error::IncorrectFormat(format!(
-                "Unsupported archiver. Only '{ARCHIVER}' is supported"
+                "Unsupported archiver. Only `{ARCHIVER}` is supported"
             )));
         }
 
@@ -356,13 +356,13 @@ impl KeyedArchive {
         let version_key = Self::get_header_key(&mut dict, VERSION_KEY_NAME)?;
         let Some(version_num) = version_key.as_unsigned_integer() else {
             return Err(Error::IncorrectFormat(format!(
-                "Expected '{VERSION_KEY_NAME}' key to be a type of 'Number'"
+                "Expected `{VERSION_KEY_NAME}` key to be a type of 'Integer'"
             )));
         };
 
         if version_num != ARCHIVER_VERSION {
             return Err(Error::IncorrectFormat(format!(
-                "Unsupported archiver version. Only '{ARCHIVER_VERSION}' is supported"
+                "Unsupported archiver version. Only `{ARCHIVER_VERSION}` is supported"
             )));
         }
 
@@ -370,7 +370,7 @@ impl KeyedArchive {
         let top_key = Self::get_header_key(&mut dict, TOP_KEY_NAME)?;
         let Some(top_dict) = top_key.to_owned().into_dictionary() else {
             return Err(Error::IncorrectFormat(format!(
-                "Expected '{TOP_KEY_NAME}' key to be a type of 'Dictionary'"
+                "Expected `{TOP_KEY_NAME}` key to be a type of `Dictionary`"
             )));
         };
 
@@ -378,7 +378,7 @@ impl KeyedArchive {
         let objects_key = Self::get_header_key(&mut dict, OBJECTS_KEY_NAME)?;
         let Some(raw_objects) = objects_key.into_array() else {
             return Err(Error::IncorrectFormat(format!(
-                "Expected '{OBJECTS_KEY_NAME}' key to be a type of 'Array'"
+                "Expected `{OBJECTS_KEY_NAME}` key to be a type of `Array`"
             )));
         };
 
