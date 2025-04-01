@@ -2,10 +2,10 @@ mod decodable;
 mod error;
 mod object;
 
+pub use decodable::*;
 pub use error::*;
 pub use object::*;
 pub use plist::Integer;
-pub use decodable::*;
 use plist::{Dictionary as PlistDictionary, Value as PlistValue};
 use std::{collections::HashMap, rc::Rc};
 
@@ -218,7 +218,6 @@ impl KeyedArchive {
         (self.top, self.objects)
     }
 
-
     /// Gets a key from a [plist::Dictionary] or an [Error] if it doesn't exist.
     fn get_header_key(dict: &mut PlistDictionary, key: &'static str) -> Result<PlistValue, Error> {
         let Some(objects_value) = dict.remove(key) else {
@@ -413,5 +412,4 @@ impl KeyedArchive {
         let val: PlistValue = PlistValue::from_reader(reader)?;
         Self::from_plist(val)
     }
-
 }

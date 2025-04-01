@@ -35,5 +35,5 @@ pub enum DeError {
     #[error("{0}: Missing object key `{1}`")]
     MissingObjectKey(String, String),
     #[error("Expected class `{1}`, found `{0}`")]
-    UnexpectedClass(String, String)
+    UnexpectedClass(String, String),
 }

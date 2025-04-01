@@ -1,4 +1,4 @@
-use crate::{DeError, ObjectValue, Integer, Object, UniqueId, ValueRef};
+use crate::{DeError, Integer, Object, ObjectValue, UniqueId, ValueRef};
 use std::collections::HashMap;
 
 /// A trait that can be implemented for a structure to be decodable.
@@ -132,7 +132,7 @@ impl Decodable for Data {
                 if v.class() != "NSData" && v.class() != "NSMutableData" {
                     return Err(DeError::UnexpectedClass(
                         v.class().into(),
-                        "NSData or NSMutableData".into()
+                        "NSData or NSMutableData".into(),
                     ));
                 }
                 let data = v.decode_data("NS.data")?;
@@ -147,9 +147,7 @@ impl Decodable for Data {
 /// Used by Vec and Hashmap impls.
 fn refs_to_t<T: Decodable>(obj: &Object) -> Result<Vec<T>, DeError> {
     let Ok(inner_objs) = obj.decode_array("NS.objects") else {
-        return Err(DeError::Custom(
-            "Missing NS.objects key".to_string(),
-        ));
+        return Err(DeError::Custom("Missing NS.objects key".to_string()));
     };
     let mut result = Vec::with_capacity(inner_objs.len());
     for inner_obj in inner_objs {
@@ -175,7 +173,7 @@ impl<T: Decodable> Decodable for Vec<T> {
         {
             return Err(DeError::UnexpectedClass(
                 obj.class().into(),
-                "NSArray, NSMutableArray, NSSet or NSMutableSet".into()
+                "NSArray, NSMutableArray, NSSet or NSMutableSet".into(),
             ));
         }
 

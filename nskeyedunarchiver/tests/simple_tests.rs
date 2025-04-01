@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
-use nskeyedunarchiver::{Data, Decodable, KeyedArchive};
 use nskeyedunarchiver::{ArchiveValue, DeError, ObjectValue, ValueRef};
+use nskeyedunarchiver::{Data, Decodable, KeyedArchive};
 
 const PLIST_PATH: &str = "./tests_resources/plists/";
 

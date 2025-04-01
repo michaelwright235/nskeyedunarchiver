@@ -1,7 +1,7 @@
 #![cfg(feature = "derive")]
 
+use nskeyedunarchiver::{Data, Decodable, KeyedArchive, ObjectValue, derive::Decodable};
 use std::collections::HashMap;
-use nskeyedunarchiver::{derive::Decodable, Data, Decodable, KeyedArchive, ObjectValue};
 
 #[derive(Decodable, Debug, PartialEq)]
 struct NSAffineTransform {
@@ -96,10 +96,13 @@ fn nsaffine_transform() {
     let obj = unarchiver.root().unwrap();
     let decoded = NSAffineTransform::decode(&obj.into()).unwrap();
     let eq = NSAffineTransform {
-        nstransform_struct: Some(vec![
-            63, 118, 176, 124, 62, 136, 211, 120, 190, 136, 211, 120, 63, 118, 176, 124, 0, 0, 0,
-            0, 0, 0, 0, 0,
-        ].into()),
+        nstransform_struct: Some(
+            vec![
+                63, 118, 176, 124, 62, 136, 211, 120, 190, 136, 211, 120, 63, 118, 176, 124, 0, 0,
+                0, 0, 0, 0, 0, 0,
+            ]
+            .into(),
+        ),
     };
     assert_eq!(decoded, eq);
 }
@@ -122,7 +125,8 @@ fn nsmutable_attributed_string() {
                     nsrgb: vec![
                         48, 46, 57, 56, 53, 57, 53, 52, 49, 54, 53, 53, 32, 48, 32, 48, 46, 48, 50,
                         54, 57, 52, 48, 48, 48, 56, 54, 51, 0,
-                    ].into(),
+                    ]
+                    .into(),
                     nscustom_color_space: Foo { nsid: 7 },
                     my_field: "".into(),
                 },
@@ -136,8 +140,7 @@ fn nsmutable_attributed_string() {
 
 #[test]
 fn simple_dict_derive() {
-    let unarchiver =
-        KeyedArchive::from_file("./tests_resources/plists/simpleDict.plist").unwrap();
+    let unarchiver = KeyedArchive::from_file("./tests_resources/plists/simpleDict.plist").unwrap();
     let root = unarchiver.root().unwrap();
     let decoded_data = HashMap::<String, DictMember>::decode(&root.into()).unwrap();
     let dict = HashMap::from([
