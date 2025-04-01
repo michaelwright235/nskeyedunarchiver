@@ -185,88 +185,39 @@ impl ArchiveValue {
     }
 }
 
-pub struct NSKeyedUnarchiver {
+/// Represents an undecoded keyed archive.
+///
+/// It contains *top* objects (the entry point of any archive) and
+/// the objects itself.
+pub struct KeyedArchive {
     objects: Vec<ValueRef>,
-    top: PlistDictionary,
+    top: HashMap<String, ValueRef>,
 }
 
-impl NSKeyedUnarchiver {
-    /// Creates a new unarchiver from a [plist::Value]. It should be the root
-    /// value of a plist and have a NSKeyedArchiver plist structure.
+impl KeyedArchive {
+    /// Returns a [HashMap] of `$top` archive values.
     ///
-    /// Returns an instance of itself or an [Error] if something went wrong.
-    pub fn new(plist: PlistValue) -> Result<Self, Error> {
-        let Some(mut dict) = plist.into_dictionary() else {
-            return Err(Error::IncorrectFormat(
-                "Expected root key to be a type of 'Dictionary'".into(),
-            ));
-        };
-
-        // Check $archiver key
-        let archiver_key = Self::get_header_key(&mut dict, ARCHIVER_KEY_NAME)?;
-        let Some(archiver_str) = archiver_key.as_string() else {
-            return Err(Error::IncorrectFormat(format!(
-                "Expected '{ARCHIVER_KEY_NAME}' key to be a type of 'String'"
-            )));
-        };
-
-        if archiver_str != ARCHIVER {
-            return Err(Error::IncorrectFormat(format!(
-                "Unsupported archiver. Only '{ARCHIVER}' is supported"
-            )));
-        }
-
-        // Check $version key
-        let version_key = Self::get_header_key(&mut dict, VERSION_KEY_NAME)?;
-        let Some(version_num) = version_key.as_unsigned_integer() else {
-            return Err(Error::IncorrectFormat(format!(
-                "Expected '{VERSION_KEY_NAME}' key to be a type of 'Number'"
-            )));
-        };
-
-        if version_num != ARCHIVER_VERSION {
-            return Err(Error::IncorrectFormat(format!(
-                "Unsupported archiver version. Only '{ARCHIVER_VERSION}' is supported"
-            )));
-        }
-
-        // Check $top key
-        let top_key = Self::get_header_key(&mut dict, TOP_KEY_NAME)?;
-        let Some(top) = top_key.to_owned().into_dictionary() else {
-            return Err(Error::IncorrectFormat(format!(
-                "Expected '{TOP_KEY_NAME}' key to be a type of 'Dictionary'"
-            )));
-        };
-
-        // Check $objects key
-        let objects_key = Self::get_header_key(&mut dict, OBJECTS_KEY_NAME)?;
-        let Some(raw_objects) = objects_key.into_array() else {
-            return Err(Error::IncorrectFormat(format!(
-                "Expected '{OBJECTS_KEY_NAME}' key to be a type of 'Array'"
-            )));
-        };
-
-        let objects = Self::decode_objects(raw_objects)?;
-        Ok(Self { objects, top })
+    /// This method is useful for some keyed archives with a complex structure,
+    /// containing several values inside of `$top`.
+    pub fn top(&self) -> &HashMap<String, ValueRef> {
+        &self.top
     }
 
-    /// Returns a [HashMap] created from the `$top` value.
-    ///
-    /// If there's only one value inside of `$top`, use `get("root")` to get it.
-    pub fn top(&self) -> HashMap<String, ValueRef> {
-        let mut map = HashMap::with_capacity(self.top.len());
-        for (key, value) in &self.top {
-            if let Some(uid) = value.as_uid() {
-                map.insert(key.to_string(), self.objects[uid.get() as usize].clone());
-            }
-        }
-        map
+    /// Returns the `root` entry point from the `$top` key if it exists.
+    pub fn root(&self) -> Option<ValueRef> {
+        self.top.get("root").cloned()
     }
 
     /// Returns all values contained inside of an archive. One may rarely use this.
     pub fn values(&self) -> &[ValueRef] {
         &self.objects
     }
+
+    /// Consumes itself and returs a tuple of `top` values and objects.
+    pub fn into_inner(self) -> (HashMap<String, ValueRef>, Vec<ValueRef>) {
+        (self.top, self.objects)
+    }
+
 
     /// Gets a key from a [plist::Dictionary] or an [Error] if it doesn't exist.
     fn get_header_key(dict: &mut PlistDictionary, key: &'static str) -> Result<PlistValue, Error> {
@@ -276,27 +227,6 @@ impl NSKeyedUnarchiver {
             )));
         };
         Ok(objects_value)
-    }
-
-    /// Reads a plist file and creates a new unarchiver from it.
-    /// It should have a NSKeyedArchiver plist structure.
-    pub fn from_file<P: AsRef<std::path::Path>>(path: P) -> Result<Self, Error> {
-        let val: PlistValue = plist::from_file(path)?;
-        Self::new(val)
-    }
-
-    /// Reads a plist from a byte slice and creates a new unarchiver from it.
-    /// It should have a NSKeyedArchiver plist structure.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        let val: PlistValue = plist::from_bytes(bytes)?;
-        Self::new(val)
-    }
-
-    /// Reads a plist from a seekable byte stream and creates a new unarchiver from it.
-    /// It should have a NSKeyedArchiver plist structure.
-    pub fn from_reader<R: std::io::Read + std::io::Seek>(reader: R) -> Result<Self, Error> {
-        let val: PlistValue = plist::from_reader(reader)?;
-        Self::new(val)
     }
 
     /// Checks if a [plist::Value] has an object structure.
@@ -381,7 +311,6 @@ impl NSKeyedUnarchiver {
 
         // In order to avoid using RefCell to write object references into
         // them only once, we can use this hack
-        // UniqueRc is more suitable for this case, but it's not stable yet
         let mut decoded_objects_raw = Vec::with_capacity(decoded_objects.len());
         for object in &decoded_objects {
             let raw = Rc::as_ptr(object) as *mut ArchiveValue;
@@ -397,4 +326,92 @@ impl NSKeyedUnarchiver {
         }
         Ok(decoded_objects)
     }
+
+    /// Creates a [KeyedArchive] from a [plist::Value]. It should be the root
+    /// value of a plist and have a keyed archive structure.
+    ///
+    /// Returns an instance of itself or an [Error] if something went wrong.
+    pub fn from_plist(plist: PlistValue) -> Result<Self, Error> {
+        let Some(mut dict) = plist.into_dictionary() else {
+            return Err(Error::IncorrectFormat(
+                "Expected root key to be a type of 'Dictionary'".into(),
+            ));
+        };
+
+        // Check $archiver key
+        let archiver_key = Self::get_header_key(&mut dict, ARCHIVER_KEY_NAME)?;
+        let Some(archiver_str) = archiver_key.as_string() else {
+            return Err(Error::IncorrectFormat(format!(
+                "Expected '{ARCHIVER_KEY_NAME}' key to be a type of 'String'"
+            )));
+        };
+
+        if archiver_str != ARCHIVER {
+            return Err(Error::IncorrectFormat(format!(
+                "Unsupported archiver. Only '{ARCHIVER}' is supported"
+            )));
+        }
+
+        // Check $version key
+        let version_key = Self::get_header_key(&mut dict, VERSION_KEY_NAME)?;
+        let Some(version_num) = version_key.as_unsigned_integer() else {
+            return Err(Error::IncorrectFormat(format!(
+                "Expected '{VERSION_KEY_NAME}' key to be a type of 'Number'"
+            )));
+        };
+
+        if version_num != ARCHIVER_VERSION {
+            return Err(Error::IncorrectFormat(format!(
+                "Unsupported archiver version. Only '{ARCHIVER_VERSION}' is supported"
+            )));
+        }
+
+        // Check $top key
+        let top_key = Self::get_header_key(&mut dict, TOP_KEY_NAME)?;
+        let Some(top_dict) = top_key.to_owned().into_dictionary() else {
+            return Err(Error::IncorrectFormat(format!(
+                "Expected '{TOP_KEY_NAME}' key to be a type of 'Dictionary'"
+            )));
+        };
+
+        // Check $objects key
+        let objects_key = Self::get_header_key(&mut dict, OBJECTS_KEY_NAME)?;
+        let Some(raw_objects) = objects_key.into_array() else {
+            return Err(Error::IncorrectFormat(format!(
+                "Expected '{OBJECTS_KEY_NAME}' key to be a type of 'Array'"
+            )));
+        };
+
+        let objects = Self::decode_objects(raw_objects)?;
+        let mut top = HashMap::with_capacity(top_dict.len());
+        for (key, value) in top_dict {
+            if let Some(uid) = value.into_uid() {
+                top.insert(key.to_string(), objects[uid.get() as usize].clone());
+            }
+        }
+
+        Ok(KeyedArchive { objects, top })
+    }
+
+    /// Reads a plist file and creates a [KeyedArchive] from it.
+    /// It should have a keyed archive structure.
+    pub fn from_file<P: AsRef<std::path::Path>>(path: P) -> Result<Self, Error> {
+        let val: PlistValue = PlistValue::from_file(path)?;
+        Self::from_plist(val)
+    }
+
+    /// Reads a plist from a byte slice and creates a [KeyedArchive] from it.
+    /// It should have a keyed archive structure.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        let cursor = std::io::Cursor::new(bytes);
+        Self::from_reader(cursor)
+    }
+
+    /// Reads a plist from a seekable byte stream and creates a [KeyedArchive] from it.
+    /// It should have a keyed archive structure.
+    pub fn from_reader<R: std::io::Read + std::io::Seek>(reader: R) -> Result<Self, Error> {
+        let val: PlistValue = PlistValue::from_reader(reader)?;
+        Self::from_plist(val)
+    }
+
 }

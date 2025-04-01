@@ -1,7 +1,7 @@
 #![cfg(feature = "derive")]
 
 use std::collections::HashMap;
-use nskeyedunarchiver::{derive::Decodable, Data, Decodable, NSKeyedUnarchiver, ObjectValue};
+use nskeyedunarchiver::{derive::Decodable, Data, Decodable, KeyedArchive, ObjectValue};
 
 #[derive(Decodable, Debug, PartialEq)]
 struct NSAffineTransform {
@@ -64,8 +64,8 @@ struct Note {
 
 #[test]
 fn note() {
-    let unarchiver = NSKeyedUnarchiver::from_file("./tests_resources/plists/note.plist").unwrap();
-    let obj = unarchiver.top().get("root").unwrap().clone();
+    let unarchiver = KeyedArchive::from_file("./tests_resources/plists/note.plist").unwrap();
+    let obj = unarchiver.root().unwrap();
     let decoded = Note::decode(&obj.into()).unwrap();
 
     let note = Note {
@@ -92,8 +92,8 @@ enum DictMember {
 #[test]
 fn nsaffine_transform() {
     let unarchiver =
-        NSKeyedUnarchiver::from_file("./tests_resources/plists/NSAffineTransform.plist").unwrap();
-    let obj = unarchiver.top().get("root").unwrap().clone();
+        KeyedArchive::from_file("./tests_resources/plists/NSAffineTransform.plist").unwrap();
+    let obj = unarchiver.root().unwrap();
     let decoded = NSAffineTransform::decode(&obj.into()).unwrap();
     let eq = NSAffineTransform {
         nstransform_struct: Some(vec![
@@ -107,9 +107,9 @@ fn nsaffine_transform() {
 #[test]
 fn nsmutable_attributed_string() {
     let unarchiver =
-        NSKeyedUnarchiver::from_file("./tests_resources/plists/NSMutableAttributedString.plist")
+        KeyedArchive::from_file("./tests_resources/plists/NSMutableAttributedString.plist")
             .unwrap();
-    let obj = unarchiver.top().get("root").unwrap().clone();
+    let obj = unarchiver.root().unwrap();
     let decoded = NSMutableAttributedString::decode(&ObjectValue::Ref(obj)).unwrap();
     let eq = NSMutableAttributedString {
         nsattribute_info: vec![5, 0, 11, 1].into(),
@@ -137,8 +137,8 @@ fn nsmutable_attributed_string() {
 #[test]
 fn simple_dict_derive() {
     let unarchiver =
-        NSKeyedUnarchiver::from_file("./tests_resources/plists/simpleDict.plist").unwrap();
-    let root = unarchiver.top().get("root").unwrap().clone();
+        KeyedArchive::from_file("./tests_resources/plists/simpleDict.plist").unwrap();
+    let root = unarchiver.root().unwrap();
     let decoded_data = HashMap::<String, DictMember>::decode(&root.into()).unwrap();
     let dict = HashMap::from([
         (
