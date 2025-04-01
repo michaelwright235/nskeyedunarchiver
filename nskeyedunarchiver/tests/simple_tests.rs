@@ -1,19 +1,18 @@
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
-use nskeyedunarchiver::{ArchiveValue, DeError, ObjectValue, ValueRef};
-use nskeyedunarchiver::{Data, Decodable, KeyedArchive};
+use nskeyedunarchiver::{ArchiveValue, DeError, ObjectValue, ValueRef, Data, Decodable, KeyedArchive};
 
 const PLIST_PATH: &str = "./tests_resources/plists/";
 
 fn open_file(name: &str) -> (ValueRef, Vec<Weak<ArchiveValue>>) {
-    let unarchiver = KeyedArchive::from_file(format!("{PLIST_PATH}{name}")).unwrap();
-    let weak_refs: Vec<Weak<ArchiveValue>> = unarchiver
+    let archive = KeyedArchive::from_file(format!("{PLIST_PATH}{name}")).unwrap();
+    let weak_refs: Vec<Weak<ArchiveValue>> = archive
         .values()
         .iter()
         .map(|v| Rc::downgrade(v))
         .collect();
-    (unarchiver.root().unwrap(), weak_refs)
+    (archive.root().unwrap(), weak_refs)
 }
 
 // Make sure we don't have dangling references at the end
@@ -252,8 +251,8 @@ fn note() {
     //                      -- String: "Hello, World!"
     //                      -- Integer: 42
     //                      -- Boolean: true
-    let unarchiver = KeyedArchive::from_file("./tests_resources/plists/note.plist").unwrap();
-    let obj = unarchiver.root().unwrap();
+    let archive = KeyedArchive::from_file("./tests_resources/plists/note.plist").unwrap();
+    let obj = archive.root().unwrap();
     let decoded = Note::decode(&obj.into()).unwrap();
 
     let note = Note {
