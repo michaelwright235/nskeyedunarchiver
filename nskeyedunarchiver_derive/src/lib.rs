@@ -245,7 +245,7 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
                             .as_map()
                             .get(#field_name)
                             .ok_or(nskeyedunarchiver::DeError::MissingObjectKey(value.class().into(), #field_name.into()))?;
-                        #last_segment_ident::#a::decode(v)?
+                        nskeyedunarchiver::error_beautifier(#last_segment_ident::#a::decode(v), #struct_name, #field_name)?
                     }
                 };
 
@@ -263,7 +263,7 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
                     inner = quote! {
                         #field_ident: {
                             if let Some(v) = value.as_map().get(#field_name) {
-                                #last_segment_ident::#a::decode(v)?
+                                nskeyedunarchiver::error_beautifier(#last_segment_ident::#a::decode(v), #struct_name, #field_name)?
                             }
                             else {
                                 Default::default()
@@ -281,7 +281,7 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
             #field_ident: {
                 let v = value.as_map().get(#field_name)
                 .ok_or(nskeyedunarchiver::DeError::MissingObjectKey(value.class().into(), #field_name.into()))?;
-                #field_type::decode(v)?
+                nskeyedunarchiver::error_beautifier(#field_type::decode(v), #struct_name, #field_name)?
             }
         };
         // Handle #[decodable(default)]
@@ -289,7 +289,7 @@ fn decodable_struct(input: &DeriveInput) -> Result<TokenStream> {
             inner = quote! {
                 #field_ident: {
                     if let Some(v) = value.as_map().get(#field_name) {
-                        #field_type::decode(v)?
+                        nskeyedunarchiver::error_beautifier(#field_type::decode(v), #struct_name, #field_name)?
                     }
                     else {
                         Default::default()
@@ -332,6 +332,7 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
         unreachable!()
     };
     let enum_ident = &input.ident;
+    let enum_ident_str = enum_ident.to_string();
 
     let enum_attrs = MacroAttributes::try_from(input.attrs.as_slice())?;
     if !enum_attrs.bool_attrs.is_empty() || !enum_attrs.str_attrs.is_empty() {
@@ -438,7 +439,7 @@ fn decodable_enum(input: &DeriveInput) -> Result<TokenStream> {
                 #(#variants_inits)*
 
                 Err(nskeyedunarchiver::DeError::Custom(format!(
-                    "Undecodable object for enum: {value:?}",
+                    "Undecodable object for enum {}: {value:?}", #enum_ident_str
                 )))
             }
         }

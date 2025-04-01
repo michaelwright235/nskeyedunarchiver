@@ -37,3 +37,11 @@ pub enum DeError {
     #[error("Expected class `{1}`, found `{0}`")]
     UnexpectedClass(String, String),
 }
+
+#[doc(hidden)]
+pub fn error_beautifier<T>(result: Result<T, DeError>, class: impl std::fmt::Display, field: impl std::fmt::Display) -> Result<T, DeError> {
+    match result {
+        Ok(ok) => Ok(ok),
+        Err(e) => Err(DeError::Custom(format!("{class}->{field}: {e}")))
+    }
+}
