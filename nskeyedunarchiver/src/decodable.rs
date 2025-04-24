@@ -1,9 +1,9 @@
 use crate::{DeError, Integer, Object, ObjectValue, UniqueId, ValueRef};
 use std::collections::HashMap;
 
-/// A trait that can be implemented for a structure to be decodable.
+/// A data structure that can be decoded from a keyed archive object value.
 pub trait Decodable {
-    /// The main decoding method of your structure
+    /// Decodes a keyed archive object value to your structure.
     fn decode(value: &ObjectValue) -> Result<Self, DeError>
     where
         Self: Sized;
@@ -29,7 +29,7 @@ impl Decodable for String {
             return Err(DeError::ExpectedString);
         }
 
-        let obj = value.as_object().unwrap();
+        let obj = value.as_object().unwrap(); // safe, checked with is_object()
         if obj.class() != "NSString" && obj.class() != "NSMutableString" {
             return Err(DeError::UnexpectedClass(
                 obj.class().into(),
@@ -47,7 +47,7 @@ impl Decodable for String {
                     "Unable to parse a UTF-8 string: {e}"
                 )));
             }
-            parsed.unwrap()
+            parsed.unwrap() // safe
         } else if let Some(ObjectValue::String(data)) = obj.as_map().get("NS.string") {
             data.clone()
         } else {
@@ -80,7 +80,7 @@ impl Decodable for bool {
 pub struct Data(Vec<u8>);
 
 impl Data {
-    /// Creates a new Data from vec of bytes.
+    /// Creates a new Data from a vec of bytes.
     pub fn new(bytes: Vec<u8>) -> Self {
         Self(bytes)
     }
@@ -135,8 +135,9 @@ impl Decodable for Data {
                         "NSData or NSMutableData".into(),
                     ));
                 }
-                let data = v.decode_data("NS.data")?;
-                return Ok(Data(data.to_vec()));
+                if let Some(ObjectValue::Data(data)) = v.as_map().get("NS.data") {
+                    return Ok(data.to_vec().into());
+                }
             }
         }
         Err(DeError::ExpectedData)

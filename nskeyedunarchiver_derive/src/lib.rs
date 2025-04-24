@@ -459,7 +459,7 @@ fn decodable_impl(input: DeriveInput) -> Result<TokenStream> {
     }
 }
 
-/// Derive macro generating an impl of the trait `Decodable`.
+/// Derive macro which generates an impl of the trait `Decodable`.
 #[proc_macro_derive(Decodable, attributes(decodable))]
 pub fn decodable(input: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree

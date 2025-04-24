@@ -1,6 +1,6 @@
 # nskeyedunarchiver
 
-Decodes Cocoa Keyed Archive into native Rust structures
+Deserialize Cocoa Keyed Archive into native Rust structures
 
 ## What is Cocoa Keyed Archive?
 
@@ -49,7 +49,7 @@ You may find manual `Decodable` implementations in the `tests/simple_test.rs`.
 
 The easiest way to make a type `Decodable` is to derive the `Decodable` *macro* for your struct or enum. Types of fields and variants should also implement `Decodable` trait.
 
-See [the readme](../nskeyedunarchiver_derive/README.md) of the `nskeyedunarchiver_derive` crate.
+See [the readme](/nskeyedunarchiver_derive/README.md) of the `nskeyedunarchiver_derive` crate.
 
 ## Example
 

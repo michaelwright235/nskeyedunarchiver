@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{DeError, Decodable, Error, Integer, NULL_OBJECT_REFERENCE_NAME, ValueRef};
+use crate::{Data, DeError, Decodable, Error, Integer, ValueRef, NULL_OBJECT_REFERENCE_NAME};
 use plist::{Dictionary as PlistDictionary, Value as PlistValue};
 
 macro_rules! get_key {
@@ -29,12 +29,14 @@ macro_rules! get_key {
     }};
 }
 
+/// Uninitiated references to other objects (uids)
 #[derive(Debug, PartialEq, Clone)]
 enum UninitRefs {
     RawRefArray(Vec<u64>), // vector of uids
     RawRef(u64),
 }
 
+/// Any possible value type of a keyed archive object.
 #[derive(Debug, PartialEq, Clone)]
 pub enum ObjectValue {
     String(String),
@@ -74,6 +76,7 @@ impl From<&ValueRef> for ObjectValue {
     }
 }
 
+/// A raw keyed archive object.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Object {
     classes: Option<ValueRef>,
@@ -91,26 +94,23 @@ impl Object {
 
     /// Tries to decode a value as a data (a vector of bytes) with a given `key`.
     /// If it doesn't exist or has some other type a [DeError] is returned.
-    pub fn decode_data(&self, key: &str) -> Result<&[u8], DeError> {
-        // In rare cases data may be encoded with a reference
-        if let Some(ObjectValue::Ref(obj_ref)) = self.fields.get(key) {
-            if let Some(d) = obj_ref.as_data() {
-                return Ok(d);
-            }
+    pub fn decode_data(&self, key: &str) -> Result<Data, DeError> {
+        if self.contains_key(key) {
+            return Err(DeError::MissingObjectKey(self.class().into(), key.into()));
         }
-        Ok(get_key!(self, key, "data"))
+        Data::decode(self.fields.get(key).unwrap())
     }
 
     /// Tries to decode a value as a float with a given `key`.
     /// If it doesn't exist or has some other type a [DeError] is returned.
-    pub fn decode_float(&self, key: &str) -> Result<&f64, DeError> {
-        Ok(get_key!(self, key, "real"))
+    pub fn decode_float(&self, key: &str) -> Result<f64, DeError> {
+        Ok(*get_key!(self, key, "real"))
     }
 
     /// Tries to decode a value as an integer with a given `key`.
     /// If it doesn't exist or has some other type a [DeError] is returned.
-    pub fn decode_integer(&self, key: &str) -> Result<&Integer, DeError> {
-        Ok(get_key!(self, key, "integer"))
+    pub fn decode_integer(&self, key: &str) -> Result<Integer, DeError> {
+        Ok(*get_key!(self, key, "integer"))
     }
 
     /// Tries to decode a value as a string with a given `key`.
@@ -139,7 +139,7 @@ impl Object {
     /// If it doesn't exist or has some other type a [DeError] is returned.
     pub fn decode_object_as<T>(&self, key: &str) -> Result<T, DeError>
     where
-        T: Decodable + 'static,
+        T: Decodable,
     {
         let obj = get_key!(self, key, "ref");
         T::decode(&obj.into())
@@ -203,6 +203,7 @@ impl Object {
         &a.as_classes().as_ref().unwrap()[0]
     }
 
+    /// Applies Rc pointers to object fields, replacing UninitRefs with normal ones
     pub(crate) fn apply_value_refs(&mut self, tree: &[ValueRef]) -> Result<(), Error> {
         self.classes = Some(tree[self.classes_uid as usize].clone());
         if !self.classes.as_ref().unwrap().is_classes() {
