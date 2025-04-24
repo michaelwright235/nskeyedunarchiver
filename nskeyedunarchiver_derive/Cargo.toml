@@ -1,7 +1,12 @@
 [package]
 name = "nskeyedunarchiver_derive"
+description = "A helper derive macro for nskeyedunarchiver crate"
 version = "0.1.0"
 edition = "2024"
+authors = ["Michael Wright <maiklpolkovnikov@gmail.com>"]
+repository = "https://github.com/michaelwright235/nskeyedunarchiver"
+license = "MIT OR Apache-2.0"
+keywords = ["nskeyedarchiver", "plist", "parser"]
 
 [lib]
 proc-macro = true
