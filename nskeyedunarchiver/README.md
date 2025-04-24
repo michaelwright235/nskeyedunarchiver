@@ -38,6 +38,7 @@ The trait is already implemented for these types:
 |NSArray, NSMutableArray, NSSet, NSMutableSet|Vec\<T\> where T: Decodable|
 |NSDictionary, NSMutableDictionary|HashMap\<K, V\> where K: Decodable + Hash + Eq, V: Decodable|
 |Uid (a reference)|ValueRef|
+|Null reference (`$null`)|Option::None|
 
 *`+ref` means that it either may be a plain plist value or a reference to it*
 
